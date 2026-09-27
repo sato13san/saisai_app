@@ -104,6 +104,18 @@ OPENAI_API_KEY = "実際のOpenAI APIキー"
 > `.streamlit/secrets.toml` は `.gitignore` の対象にしておきます。  
 > チームで設定項目を共有する場合は、実際のキーを記載せず `secrets.toml.sample` を更新してください。
 
+### 4. AIチャット接続テスト
+
+ターミナルで以下を実行し、アプリを起動します。
+
+```bash
+streamlit run app.py
+```
+
+ブラウザでアプリが開いたら、チャット欄に任意のメッセージを入力してください。
+
+AIから返答が返ってくれば、`secrets.toml` に設定した `OPENAI_API_KEY` を使って正常にOpenAI APIへ接続できています。
+
 ## 2回目以降
 
 作業を始める前に、**SourceTreeで作業するブランチを確認し、必要に応じてPullして最新の状態にします。**
