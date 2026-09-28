@@ -1,0 +1,45 @@
+erDiagram
+
+    users ||--o{ knowledge : creates
+    product_category ||--o{ knowledge : categorizes
+    result ||--o{ knowledge : has
+    knowledge ||--o{ knowledge_keyword : has
+    keyword ||--o{ knowledge_keyword : assigned
+
+    users {
+        UUID id PK
+        TEXT name
+        TIMESTAMPTZ created_at
+    }
+
+    product_category {
+        INT8 id PK
+        TEXT name
+    }
+
+    result {
+        INT8 id PK
+        TEXT name
+    }
+
+    knowledge {
+        UUID id PK
+        UUID user_id FK
+        INT8 product_category_id FK
+        INT8 result_id FK
+        TEXT customer_attribute
+        TEXT customer_needs
+        TEXT proposal
+        TEXT reflection
+        TIMESTAMPTZ created_at
+    }
+
+    keyword {
+        INT8 id PK
+        TEXT name
+    }
+
+    knowledge_keyword {
+        UUID knowledge_id PK, FK
+        INT8 keyword_id PK, FK
+    }
