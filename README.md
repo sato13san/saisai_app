@@ -227,3 +227,83 @@ python -m pip check
 ※ `requirements.txt` の行を削除しても、すでに仮想環境にインストールされているライブラリは自動では削除されません。不要なライブラリが仮想環境に残っていると、次に `pip freeze` を実行した際に再び `requirements.txt` に記録されます。
 
 また、Windows専用パッケージなどが追加された場合は、他のOSでもインストールできるか確認してください。
+
+## フォルダ構成
+
+プロジェクトの主なフォルダ・ファイル構成は以下の通りです。
+
+```text
+saisai_app/
+├── .venv/                     # 仮想環境（Git管理対象外）
+├── .gitignore                 # Git管理から除外するファイルを設定
+├── requirements.txt           # Pythonの依存ライブラリ一覧
+├── README.md                  # プロジェクト概要・セットアップ手順
+│
+├── .streamlit/
+│   └── secrets.toml           # APIキーなどの機密情報（Git管理対象外）
+│
+├── data/                      # データ関連ファイル
+│   └── database.db            # SQLiteのDBファイル
+│
+├── docs/                      # 設計・ドキュメント関連ファイル
+│   └── er_diagram.mmd         # ER図（Mermaid形式）
+│
+├── schema.sql                 # データベースのテーブル定義
+│
+├── app.py                     # Streamlitアプリのエントリーポイント
+│
+├── services/                  # データ操作・検索などのロジック
+│   ├── search.py              # 検索処理
+│   ├── ranking.py             # 検索結果のランキング処理
+│   ├── database.py            # データベース操作
+│   └── crawler.py             # Webクローラー（必要に応じて使用）
+│
+├── llm/                       # OpenAI APIを利用するAI関連処理
+│   ├── models.py              # AIで扱うデータ・モデル関連の定義
+│   └── tools.py               # AIから利用する処理・ツール
+│
+└── pages/                     # Streamlitのマルチページ用フォルダ
+    └── 1_xxx.py               # 追加画面（必要に応じて作成）
+```
+
+### 主なフォルダの役割
+
+- `services/`：検索やデータベース操作など、画面表示以外の処理をまとめます。
+- `llm/`：OpenAI APIを利用したAI機能に関する処理をまとめます。
+- `pages/`：Streamlitで複数画面を作成する場合に使用します。
+- `data/`：データベースなど、アプリで利用するデータを配置します。
+- `docs/`：ER図など、開発時に参照する設計資料を配置します。
+- `.streamlit/`：Streamlitの設定やAPIキーなどの秘密情報を配置します。
+
+> **注意**
+>
+> `.venv/`、`.streamlit/secrets.toml`、`data/database.db` など、各メンバーのローカル環境や機密情報を含むファイルは、必要に応じて `.gitignore` に設定してください。
+
+---
+
+## ER図
+
+データベースのテーブル構成とテーブル間の関係は、Mermaid形式のER図で管理します。
+
+ER図の元ファイルは以下に配置します。
+
+```text
+docs/er_diagram.mmd
+```
+
+### テーブル概要
+
+| テーブル | 役割 |
+| --- | --- |
+| `users` | アプリを利用するユーザーを管理 |
+| `knowledge` | 接客事例や振り返りなどのナレッジを管理 |
+| `product_category` | 家電の商品カテゴリを管理 |
+| `result` | 成約・検討・失注などの接客結果を管理 |
+| `keyword` | ナレッジに付与するキーワードを管理 |
+| `knowledge_keyword` | ナレッジとキーワードの多対多の関係を管理 |
+
+`knowledge` が中心となるテーブルで、ユーザー・商品カテゴリ・接客結果と紐づきます。
+
+また、1つのナレッジには複数のキーワードを付与でき、同じキーワードを複数のナレッジで利用できるため、`knowledge_keyword` を中間テーブルとして使用します。
+
+ER図を変更した場合は、`docs/er_diagram.mmd` も更新し、データベース構造とER図の内容が一致するようにしてください。
