@@ -23,7 +23,7 @@ with tab_test:
     )
 
     # 入力欄
-    user_message = st.chat_input("メッセージを入力してください")
+    user_message = st.text_input("メッセージを入力してください")
 
     if user_message:
 
