@@ -34,3 +34,37 @@ with tab_test:
             st.subheader("AIが生成したキーワード")
             st.write(keywords)
 # ===== 【飯酒盃】キーワード生成・類似事例 ここまで =====           
+
+
+# ===== 【いっさん】Supabase接続確認（後で消す） =====
+import streamlit as st
+from supabase import create_client
+
+# Supabase接続情報を取得
+supabase_url = st.secrets["SUPABASE_URL"]
+supabase_key = st.secrets["SUPABASE_KEY"]
+
+# Supabaseクライアントを作成
+supabase = create_client(supabase_url, supabase_key)
+
+st.title("Supabase 接続テスト")
+
+try:
+    # usersテーブルから1件だけ取得
+    response = (
+        supabase
+        .table("users")
+        .select("*")
+        .limit(1)
+        .execute()
+    )
+
+    st.success("✅ Supabaseへの接続に成功しました！")
+
+    st.write("取得結果")
+    st.write(response.data)
+
+except Exception as e:
+    st.error("❌ Supabaseへの接続に失敗しました")
+    st.write(e)
+# ===== 【いっさん】Supabase接続確認（ここまで） =====
