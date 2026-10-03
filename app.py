@@ -12,27 +12,11 @@ st.write("Hello world")
 st.info("開発環境のセットアップが完了しました！")
 
 # タブ作成
-tab_test, tab_search, tab_crawl, tab_list = st.tabs(['AIテスト', '検索', 'クロール', '一覧'])
+tab_register, tab_search = st.tabs(["事例登録", "ナレッジ検索"])
 
 # ===== 【飯酒盃】キーワード生成・類似事例 ここから =====
-# OpenAI API接続確認（後で消す）
-with tab_test:
-    st.subheader("AIキーワード生成テスト")
+#===== 【さやねー】操作のため一時的にいささん作成内容を削除 =====
 
-    # 入力欄
-    user_message = st.text_area(
-        "接客事例を入力してください",
-        placeholder="例：40代夫婦のお客様。冷蔵庫を探していて、容量は大きい方がいいが、電気代も気にしていた。省エネ性能を説明して、500Lの商品を提案した。")
-
-    if user_message:
-            keywords = generate_keywords(
-                case_text=user_message
-    )
-
-
-            # AIの回答を表示
-            st.subheader("AIが生成したキーワード")
-            st.write(keywords)
 # ===== 【飯酒盃】キーワード生成・類似事例 ここまで =====           
 
 
@@ -69,4 +53,38 @@ except Exception as e:
     st.write(e)
 # ===== 【いっさん】Supabase接続確認（ここまで） =====
 # ===== 【さやねー】入力フォーム ここから =====
+# ここにこれから事例登録画面を作っていきます
+with tab_register:
+    st.header("事例登録")
+    st.write("接客事例を入力してください")
+# ユーザー選択
+    selected_user = st.selectbox(
+        "ユーザー",
+        ["選択してください", "ユーザーA", "ユーザーB", "ユーザーC"]
+    )
+# 商品カテゴリ選択
+    selected_category = st.selectbox(
+        "商品カテゴリ",
+        ["選択してください", "冷蔵庫", "洗濯機", "テレビ", "エアコン"]
+    )
+# 結果選択
+    selected_result = st.selectbox(
+        "結果",
+        ["選択してください", "成約", "未成約"]
+    )
+# 顧客属性
+    customer_attribute = st.text_area(
+        "顧客属性",
+        placeholder="例：40代夫婦、子ども2人"
+    )
+ # 顧客ニーズ
+    customer_needs = st.text_area(
+        "顧客ニーズ",
+        placeholder="例：容量の大きい冷蔵庫が欲しい。電気代も抑えたい。"
+    )
+# 顧客ニーズ
+    customer_needs = st.text_area(
+        "顧客ニーズ",
+        placeholder="例：容量の大きい冷蔵庫が欲しい。電気代も抑えたい。"
+    )
 # ===== 【さやねー】入力フォーム ここまで =====
