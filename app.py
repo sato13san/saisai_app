@@ -26,11 +26,6 @@ tab_register, tab_search = st.tabs(["事例登録", "ナレッジ検索"])
 # ===== 【飯酒盃】キーワード生成・類似事例 ここまで =====           
 
 
-# ===== 【いっさん】Supabase接続確認（後で消す） =====
-#===== 【さやねー】supabase接続確認を消しました。 =====
-
-# ===== 【いっさん】Supabase接続確認（ここまで） =====
-
 # ===== 【さやねー】入力フォームをここから作っていきます =====
 # 事例登録画面を作っていきます
 with tab_register:
@@ -81,7 +76,7 @@ with tab_register:
         placeholder="例：500Lの省エネ性能の高い冷蔵庫を提案した。"
     )
 
- # 類似事例を見るボタン（No.4 類似事例詳細表示）
+# 類似事例を見るボタン（No.4 類似事例詳細表示）
     if st.button("類似事例を見る"):
         st.session_state.case_data = {
             "user": selected_user,
@@ -115,36 +110,36 @@ with tab_register:
         st.write(
             f"提案内容：{st.session_state.case_data['proposal']}"
         )
-# 仮の類似事例（後でいささんデータつなぎ後に修正が必要なパート）将来一行下を　find_similar(case_data, top_k=3)に置き換える　
-st.session_state.similar_cases = [
-            {
-                "title": "冷蔵庫の容量と省エネを重視した事例",
-                "detail": "40代夫婦のお客様に500Lクラスの省エネ冷蔵庫を提案した事例です。"
-            },
-            {
-                "title": "家族構成に合わせて冷蔵庫を提案した事例",
-                "detail": "子どもがいるご家庭に、容量と使いやすさを重視して提案した事例です。"
-            },
-            {
-                "title": "電気代を重視した冷蔵庫の提案例",
-                "detail": "ランニングコストを気にされるお客様に、省エネ性能を説明した事例です。"
-            }
-        ]
-# 類似事例を表示
-st.subheader("類似事例")
-for case in st.session_state.similar_cases:
-            with st.expander(case["title"]):
-                st.write(case["detail"])
+    # 仮の類似事例（後でいささんデータつなぎ後に修正が必要なパート）将来一行下を　find_similar(case_data, top_k=3)に置き換える　
+    st.session_state.similar_cases = [
+                {
+                    "title": "冷蔵庫の容量と省エネを重視した事例",
+                    "detail": "40代夫婦のお客様に500Lクラスの省エネ冷蔵庫を提案した事例です。"
+                },
+                {
+                    "title": "家族構成に合わせて冷蔵庫を提案した事例",
+                    "detail": "子どもがいるご家庭に、容量と使いやすさを重視して提案した事例です。"
+                },
+                {
+                    "title": "電気代を重視した冷蔵庫の提案例",
+                    "detail": "ランニングコストを気にされるお客様に、省エネ性能を説明した事例です。"
+                }
+            ]
+    # 類似事例を表示
+    st.subheader("類似事例")
+    for case in st.session_state.similar_cases:
+                with st.expander(case["title"]):
+                    st.write(case["detail"])
 
-# 振り返り入力（No.5 振り返り入力・事例登録）
-st.subheader("振り返り")
-# いっさん作業　create_knowledge(data: dict, keywords: list[str]) -> str　がつながるまでの仮入力
-reflection = st.text_area(
-        "今回の接客を振り返って、気づいたことや次回に活かしたいことを入力してください。",
-        placeholder="例：お客様の家族構成をもう少し詳しく聞いてから、容量を提案するとよかった。"
-    )
-# 事例登録ボタン
-if st.button("事例を登録する"):
+    # 振り返り入力（No.5 振り返り入力・事例登録）
+    st.subheader("振り返り")
+    # いっさん作業　create_knowledge(data: dict, keywords: list[str]) -> str　がつながるまでの仮入力
+    reflection = st.text_area(
+            "今回の接客を振り返って、気づいたことや次回に活かしたいことを入力してください。",
+            placeholder="例：お客様の家族構成をもう少し詳しく聞いてから、容量を提案するとよかった。"
+        )
+    # 事例登録ボタン
+    if st.button("事例を登録する"):
 
         # 必須項目の入力チェック
         if selected_user == "選択してください":
@@ -177,3 +172,120 @@ if st.button("事例を登録する"):
 
 
 #===== 【さやねー】入力フォーム ここまで =====
+
+# =====【いっさん】検索タブ ここから =====
+from services.database import get_categories, get_report_years
+from services.search import search_knowledge
+
+def render_search_tab():
+    st.subheader("ナレッジ検索")
+    st.caption("検索語を入力してください。複数語はスペースで区切ります（AND検索）。")
+
+    try:
+        #  入力欄に並べる選択肢をDBから準備する。
+        categories = get_categories()
+        years = get_report_years()
+    except RuntimeError as error:
+        st.error(str(error))
+        return
+
+    # カテゴリIDから名称を引く辞書を作る（DBにIDを渡し、画面に名称を返す）
+    category_names = {row["id"]: row["name"] for row in categories}
+    # フォーム内の入力をまとめ、検索ボタンで送信する
+    with st.form("knowledge_search_form"):
+        query = st.text_input(
+            "フリーワード（必須）",
+            placeholder="例：省エネ 30代",
+            key="knowledge_search_query",
+        )
+        # 左にカテゴリ、右に報告年を配置。
+        left, right = st.columns(2)
+        with left:
+            #  Noneはすべての選択肢として加え、その後ろにカテゴリIDを並べる。
+            category_id = st.selectbox(
+                "商品カテゴリ",
+                [None, *category_names],
+                format_func=lambda value: "すべて" if value is None else category_names[value],
+                key = "knowledge_search_category",
+            )
+        with right:
+            # 年の値は整数として保持し、画面表示だけ「2026年」の形にする。
+            # Noneはすべてで、年を絞らないことを示す。
+            year = st.selectbox(
+                "報告年",
+                [None, *years],
+                format_func=lambda value: "すべて" if value is None else f"{value}年",
+                key="knowledge_search_year",
+            )
+        submitted = st.form_submit_button("検索", type = "primary")
+
+    # 検索ボタンを押したときだけこの中の処理を実行。条件を確認し、問題なければ検索関数へ入力値を渡す。
+    if submitted:
+        #  空入力や失敗時に、前回の結果を今回の結果として残さない
+        st.session_state["knowledge_search_output"] = None
+        if not query.strip():
+            st.warning("フリーワードを入力してください。")
+        else:
+            try:
+                with st.spinner("検索しています..."):
+                    results = search_knowledge(query, category_id, year)
+                # 検索条件と結果をまとめて保存する。st.session_stateへ残して次回も結果を表示できるようにする。
+                st.session_state["knowledge_search_output"] = {
+                    "query": query,
+                    "category": category_names.get(category_id, "すべて"),
+                    "year": year,
+                    "results": results,
+                }
+            except RuntimeError as error:
+                st.error(str(error))
+
+    # 保存しておいた直近の検索結果を取り出す。
+    # 初回表示や検索失敗後はNoneなので、結果の表示処理へ進まず戻る。
+    output = st.session_state.get("knowledge_search_output")
+    if output is None:
+        return
+
+    # フォーム編集後も、結果がどの検索条件のものかわかるようにする。
+    year_label = f"{output['year']}年" if output["year"] is not None else "すべて"
+    st.text(
+        f"検索語：{output['query']} ／ カテゴリ：{output['category']} ／ 報告年：{year_label}"
+    )
+    results = output["results"]
+    st.caption(f"表示：{len(results)}件（関連度順・最大20件）")
+    # 検索結果が0件の時の案内（処理失敗とは別）
+    if not results:
+        st.info("該当する事例がありません。検索語を減らすか、絞り込み条件を変更してください。")
+        return
+
+    # 検索結果を1件ずつ表示する。
+    for number, record in enumerate(results, 1):
+        with st.container(border=True):
+            st.text(f"{number}. 報告日：{record.get('report_date') or '未設定'}")
+            # タグ風の表示
+            # カテゴリ名・検索結果・キーワードを1つのリストへまとめる
+            tag_names = [
+                record.get("category_name") or "カテゴリ未設定",
+                record.get("result_name") or "結果未設定",
+            ] + record["keywords"]
+            tags = []
+            for tag in tag_names:
+                # データ内の記号・改行でタグの表示が崩れるのを防ぐ
+                tag = tag.replace("`", "").replace("\n", " ").replace("\r", " ")
+                tags.append(f"`{tag}")
+            st.markdown(" ".join(tags))
+            st.text(record["preview"] or "本文なし")
+            # クリックで開閉できる領域を作り、事例の全文を表示する。
+            with st.expander("詳細を見る"):
+                st.text(f"投稿者：{record.get('user_name') or '未設定'}")
+                for label, field in [
+                    ("顧客属性", "customer_attribute"),
+                    ("顧客ニーズ", "customer_needs"),
+                    ("提案内容", "proposal"),
+                    ("振り返り", "reflection")
+                ]:
+                    st.markdown(f"**{label}**")
+                    st.text(record.get(field) or "未入力")
+
+with tab_search:
+    render_search_tab()
+# =====【いっさん】検索タブ ここまで =====

@@ -97,8 +97,8 @@ def list_knowledge(category_id=None, year=None) -> list[dict]:
                 .table("knowledge")
                 .select(
                     "id, user_id, product_category_id, result_id, report_date,"
-                    "customer_attribute, customer_needs, proposal, reflection, created_at"
-                    "users(name), product_category(name), result(name)"
+                    "customer_attribute, customer_needs, proposal, reflection, created_at,"
+                    "users(name), product_category(name), result(name),"
                     "knowledge_keyword(keyword(name))"
                 )
             )
