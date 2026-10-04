@@ -118,15 +118,27 @@ with tab_register:
         )
 # 類似事例を探して保存する（ここまでがボタンの中）
         st.session_state.similar_cases = find_similar(st.session_state.case_data, top_k=3)
+        # 新しく探したときは、最初の1件だけ表示する状態に戻す
+        st.session_state.show_all_similar = False
 
-    # 類似事例を表示（ボタンの外。保存されたデータがあれば毎回表示される）
+    # ===== 【飯酒盃】類似事例の表示（最初は1件、「他の事例を見る」で最大3件） ここから =====
+    # ボタンの外なので、保存されたデータがあれば再実行のたびに表示される
     if st.session_state.similar_cases:
         st.subheader("類似事例")
-        for case in st.session_state.similar_cases:
+        show_all = st.session_state.get("show_all_similar", False)
+        shown_cases = st.session_state.similar_cases if show_all else st.session_state.similar_cases[:1]
+        for case in shown_cases:
             with st.expander(case["title"]):
                 st.write(case["detail"])
+
+        # まだ表示していない事例があるときだけ、ボタンを出す
+        rest = len(st.session_state.similar_cases) - len(shown_cases)
+        if rest > 0 and st.button(f"他の事例を見る（あと{rest}件）"):
+            st.session_state.show_all_similar = True
+            st.rerun()
     elif st.session_state.case_data:
         st.info("似ている過去事例は見つかりませんでした。")
+    # ===== 【飯酒盃】類似事例の表示 ここまで =====
 
     # 振り返り入力（No.5 振り返り入力・事例登録）
     st.subheader("振り返り")
