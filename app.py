@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 st.title("テクゼロン電気　お客さまナレッジデータベース")
-st.write("また、振り返りしたい接客事例について、過去の類似接客事例を確認しましょう。")
+st.write("振り返りしたい接客事例について登録するアプリです。あわせて過去の類似接客事例も確認しましょう。")
 st.info("登録したい接客体験を入力してください。入力作業の後、ＤＢから成功事例を検索・表示・確認することができます。")
 
 # タブ作成
@@ -45,32 +45,38 @@ with tab_register:
         st.session_state.similar_cases = []
 
     st.write("接客事例を入力してください")
-# ユーザー選択（No.1 ユーザー選択）
+
+    # ユーザー選択（No.1 ユーザー選択）
     selected_user = st.selectbox(
         "ユーザー",
-        ["選択してください", "ユーザーA", "ユーザーB", "ユーザーC"]
+        ["選択してください", "田中 太郎", "山田 花子", "佐藤 健一"]
     )
-# 商品カテゴリ選択（No.2 入力フォーム）
+
+    # 商品カテゴリ選択（No.2 入力フォーム）
     selected_category = st.selectbox(
         "商品カテゴリ",
-        ["選択してください", "冷蔵庫", "洗濯機", "テレビ", "エアコン"]
+        ["選択してください", "エアコン", "冷蔵庫", "洗濯機"]
     )
-# 結果選択
+
+    # 結果選択
     selected_result = st.selectbox(
         "結果",
-        ["選択してください", "成約", "未成約"]
+        ["選択してください", "成約", "検討", "失注"]
     )
-# 顧客属性
+
+    # 顧客属性
     customer_attribute = st.text_area(
         "顧客属性",
         placeholder="例：40代夫婦、子ども2人"
     )
-# 顧客ニーズ
+
+    # 顧客ニーズ
     customer_needs = st.text_area(
         "顧客ニーズ",
         placeholder="例：容量の大きい冷蔵庫が欲しい。電気代も抑えたい。"
     )
-# 提案内容
+
+    # 提案内容
     proposal = st.text_area(
         "提案内容",
         placeholder="例：500Lの省エネ性能の高い冷蔵庫を提案した。"
@@ -110,26 +116,28 @@ with tab_register:
         st.write(
             f"提案内容：{st.session_state.case_data['proposal']}"
         )
-    # 仮の類似事例（後でいささんデータつなぎ後に修正が必要なパート）将来一行下を　find_similar(case_data, top_k=3)に置き換える　
-    st.session_state.similar_cases = [
-                {
-                    "title": "冷蔵庫の容量と省エネを重視した事例",
-                    "detail": "40代夫婦のお客様に500Lクラスの省エネ冷蔵庫を提案した事例です。"
-                },
-                {
-                    "title": "家族構成に合わせて冷蔵庫を提案した事例",
-                    "detail": "子どもがいるご家庭に、容量と使いやすさを重視して提案した事例です。"
-                },
-                {
-                    "title": "電気代を重視した冷蔵庫の提案例",
-                    "detail": "ランニングコストを気にされるお客様に、省エネ性能を説明した事例です。"
-                }
-            ]
-    # 類似事例を表示
-    st.subheader("類似事例")
-    for case in st.session_state.similar_cases:
-                with st.expander(case["title"]):
-                    st.write(case["detail"])
+# 仮の類似事例（後でいささんデータつなぎ後に修正が必要なパート）
+        st.session_state.similar_cases = [
+            {
+                "title": "冷蔵庫の容量と省エネを重視した事例",
+                "detail": "40代夫婦のお客様に500Lクラスの省エネ冷蔵庫を提案した事例です。"
+            },
+            {
+                "title": "家族構成に合わせて冷蔵庫を提案した事例",
+                "detail": "子どもがいるご家庭に、容量と使いやすさを重視して提案した事例です。"
+            },
+            {
+                "title": "電気代を重視した冷蔵庫の提案例",
+                "detail": "ランニングコストを気にされるお客様に、省エネ性能を説明した事例です。"
+            }
+        ]
+
+        # 類似事例を表示
+        st.subheader("類似事例")
+
+        for case in st.session_state.similar_cases:
+            with st.expander(case["title"]):
+                st.write(case["detail"])
 
     # 振り返り入力（No.5 振り返り入力・事例登録）
     st.subheader("振り返り")
