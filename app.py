@@ -4,7 +4,7 @@ from datetime import date
 import streamlit as st
 from llm.tools import generate_keywords
 #===== 【さやねー】いささん作業：find_similar(case: dict, top_k=3)を呼び出す設計（後で↓頭の＃を外す） =====
-#from services.similar import find_similar
+from services.similar import find_similar
 #===== 【さやねー】追加ここまで =====
 
 st.set_page_config(
@@ -116,28 +116,17 @@ with tab_register:
         st.write(
             f"提案内容：{st.session_state.case_data['proposal']}"
         )
-# 仮の類似事例（後でいささんデータつなぎ後に修正が必要なパート）
-        st.session_state.similar_cases = [
-            {
-                "title": "冷蔵庫の容量と省エネを重視した事例",
-                "detail": "40代夫婦のお客様に500Lクラスの省エネ冷蔵庫を提案した事例です。"
-            },
-            {
-                "title": "家族構成に合わせて冷蔵庫を提案した事例",
-                "detail": "子どもがいるご家庭に、容量と使いやすさを重視して提案した事例です。"
-            },
-            {
-                "title": "電気代を重視した冷蔵庫の提案例",
-                "detail": "ランニングコストを気にされるお客様に、省エネ性能を説明した事例です。"
-            }
-        ]
+# 類似事例を探して保存する（ここまでがボタンの中）
+        st.session_state.similar_cases = find_similar(st.session_state.case_data, top_k=3)
 
-        # 類似事例を表示
+    # 類似事例を表示（ボタンの外。保存されたデータがあれば毎回表示される）
+    if st.session_state.similar_cases:
         st.subheader("類似事例")
-
         for case in st.session_state.similar_cases:
             with st.expander(case["title"]):
                 st.write(case["detail"])
+    elif st.session_state.case_data:
+        st.info("似ている過去事例は見つかりませんでした。")
 
     # 振り返り入力（No.5 振り返り入力・事例登録）
     st.subheader("振り返り")

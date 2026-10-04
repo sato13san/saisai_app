@@ -47,7 +47,7 @@ def find_similar(case: dict, top_k: int = 3) -> list[dict]:
 
     Args:
         case: 登録画面の入力内容。category（カテゴリ名）、customer_attribute、
-              customer_needs、proposal を使う。keywords があれば加味する。
+            customer_needs、proposal を使う。keywords があれば加味する。
     Returns:
         [{"title": ..., "detail": ...}, ...]。似た事例がなければ []。
     """
