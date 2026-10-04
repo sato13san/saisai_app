@@ -118,6 +118,20 @@ with tab_register:
         )
 # 類似事例を探して保存する（ここまでがボタンの中）
         # DB に接続できないなどで失敗しても、画面全体は止めずにメッセージを出す（NF-04）
+        # ===== 【飯酒盃】AIキーワード生成（No.6） ここから =====
+        # 入力内容から AI が検索用キーワードを作る。失敗しても空のリストが返るだけで、処理は止まらない
+        with st.spinner("AIがキーワードを作成しています..."):
+            st.session_state.case_data["keywords"] = generate_keywords(
+                case_text="\n".join([
+                    f"顧客属性：{customer_attribute}",
+                    f"顧客ニーズ：{customer_needs}",
+                    f"提案内容：{proposal}",
+                ]),
+                category=selected_category,
+                result=selected_result,
+            )
+        # ===== 【飯酒盃】AIキーワード生成 ここまで =====
+
         try:
             with st.spinner("類似事例を探しています..."):
                 st.session_state.similar_cases = find_similar(st.session_state.case_data, top_k=3)
@@ -134,6 +148,12 @@ with tab_register:
 
     # ===== 【飯酒盃】類似事例の表示（最初は1件、「他の事例を見る」で最大3件） ここから =====
     # ボタンの外なので、保存されたデータがあれば再実行のたびに表示される
+    keywords = st.session_state.case_data.get("keywords") if st.session_state.case_data else None
+    if keywords:
+        st.markdown("**AIが付けたキーワード：** " + " ".join(f"`{k}`" for k in keywords))
+    elif st.session_state.case_data:
+        st.caption("AIキーワードを作成できませんでした（キーワードなしで類似事例を探しています）。")
+
     if st.session_state.get("similar_error"):
         # 取得に失敗したときは「見つからなかった」と区別して、エラーとして表示する
         st.error(st.session_state.similar_error)
@@ -184,7 +204,9 @@ with tab_register:
                 "customer_needs": customer_needs,
                 "proposal": proposal,
                 "reflection": reflection,
-                "report_date": date.today().isoformat()
+                "report_date": date.today().isoformat(),
+                # 【飯酒盃】「類似事例を見る」で AI が作ったキーワード（未実行なら空）
+                "keywords": st.session_state.case_data.get("keywords", []),
             }
 
             st.success("事例データをまとめました。")
