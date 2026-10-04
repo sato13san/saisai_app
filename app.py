@@ -117,13 +117,27 @@ with tab_register:
             f"提案内容：{st.session_state.case_data['proposal']}"
         )
 # 類似事例を探して保存する（ここまでがボタンの中）
-        st.session_state.similar_cases = find_similar(st.session_state.case_data, top_k=3)
+        # DB に接続できないなどで失敗しても、画面全体は止めずにメッセージを出す（NF-04）
+        try:
+            with st.spinner("類似事例を探しています..."):
+                st.session_state.similar_cases = find_similar(st.session_state.case_data, top_k=3)
+            st.session_state.similar_error = None
+        except RuntimeError as error:
+            # database.py が出す「事例を取得できませんでした」などのメッセージをそのまま表示する
+            st.session_state.similar_cases = []
+            st.session_state.similar_error = str(error)
+        except Exception:
+            st.session_state.similar_cases = []
+            st.session_state.similar_error = "類似事例を表示できませんでした。時間をおいてもう一度お試しください。"
         # 新しく探したときは、最初の1件だけ表示する状態に戻す
         st.session_state.show_all_similar = False
 
     # ===== 【飯酒盃】類似事例の表示（最初は1件、「他の事例を見る」で最大3件） ここから =====
     # ボタンの外なので、保存されたデータがあれば再実行のたびに表示される
-    if st.session_state.similar_cases:
+    if st.session_state.get("similar_error"):
+        # 取得に失敗したときは「見つからなかった」と区別して、エラーとして表示する
+        st.error(st.session_state.similar_error)
+    elif st.session_state.similar_cases:
         st.subheader("類似事例")
         show_all = st.session_state.get("show_all_similar", False)
         shown_cases = st.session_state.similar_cases if show_all else st.session_state.similar_cases[:1]
