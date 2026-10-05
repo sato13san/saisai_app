@@ -318,7 +318,7 @@ def render_search_tab():
             for tag in tag_names:
                 # データ内の記号・改行でタグの表示が崩れるのを防ぐ
                 tag = tag.replace("`", "").replace("\n", " ").replace("\r", " ")
-                tags.append(f"`{tag}")
+                tags.append(f"`{tag}`")
             st.markdown(" ".join(tags))
             st.text(record["preview"] or "本文なし")
             # クリックで開閉できる領域を作り、事例の全文を表示する。
