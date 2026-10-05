@@ -36,6 +36,40 @@ def get_categories() -> list[dict]:
         raise RuntimeError("商品カテゴリを取得できませんでした。") from None
 
 
+def get_users() -> list[dict]:
+    """ユーザーのマスタを取得する。登録画面のユーザー選択で使う。"""
+    supabase = get_client()
+    try:
+        # get_categories と同じ形で、id と name のリストを返す。名前順に並べる。
+        response = (
+            supabase
+            .table("users")
+            .select("id, name")
+            .order("name")
+            .execute()
+        )
+        return response.data or []
+    except Exception:
+        raise RuntimeError("ユーザーを取得できませんでした。") from None
+
+
+def get_results() -> list[dict]:
+    """接客結果（成約・検討・失注）のマスタを取得する。登録画面の結果選択で使う。"""
+    supabase = get_client()
+    try:
+        # get_categories と同じ形で、id と name のリストを返す。
+        response = (
+            supabase
+            .table("result")
+            .select("id, name")
+            .order("id")
+            .execute()
+        )
+        return response.data or []
+    except Exception:
+        raise RuntimeError("接客結果を取得できませんでした。") from None
+
+
 def get_report_years() -> list[int]:
     """報告日から年を取り出し、新しい年から順に返す。"""
     # 接続用の関数を呼び出し、以降のtable・select等で使う変数へ入れる。
