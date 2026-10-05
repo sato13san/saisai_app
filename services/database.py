@@ -162,3 +162,46 @@ def list_knowledge(category_id=None, year=None) -> list[dict]:
 
     # 取得と整形が終わった全事例を返す。ここでは順位付けはまだ行わない。
     return records
+
+def create_knowledge(data: dict, keywords: list[str]) -> str:
+    """事例を1件登録し、キーワードを紐付けて、登録した事例の id を返す。"""
+    supabase = get_client()
+    try:
+        # ① 事例を登録する。ID は画面側で変換済みのものを受け取る
+        response = (
+            supabase
+            .table("knowledge")
+            .insert({
+                "user_id": data["user_id"],
+                "product_category_id": data["product_category_id"],
+                "result_id": data["result_id"],
+                "report_date": data["report_date"],
+                "customer_attribute": data.get("customer_attribute") or "",
+                "customer_needs": data.get("customer_needs") or "",
+                "proposal": data.get("proposal") or "",
+                "reflection": data.get("reflection") or "",
+            })
+            .execute()
+        )
+        knowledge_id = response.data[0]["id"]
+
+        # ② キーワードを keyword に追加し（すでにあれば何もしない）、③ 事例と紐付ける
+        names = []
+        for keyword in keywords:
+            if keyword and keyword.strip() and keyword.strip() not in names:
+                names.append(keyword.strip())
+        for name in names:
+            keyword_response = (
+                supabase
+                .table("keyword")
+                .upsert({"name": name}, on_conflict="name")
+                .execute()
+            )
+            supabase.table("knowledge_keyword").upsert({
+                "knowledge_id": knowledge_id,
+                "keyword_id": keyword_response.data[0]["id"],
+            }).execute()
+
+        return knowledge_id
+    except Exception:
+        raise RuntimeError("事例を登録できませんでした。通信状態を確認してください。") from None
