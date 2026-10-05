@@ -5,6 +5,7 @@ import streamlit as st
 from llm.tools import generate_keywords
 #===== 【さやねー】いささん作業：find_similar(case: dict, top_k=3)を呼び出す設計（後で↓頭の＃を外す） =====
 from services.similar import find_similar
+from services.database import get_users, get_categories, get_results, create_knowledge
 #===== 【さやねー】追加ここまで =====
 
 st.set_page_config(
@@ -46,23 +47,23 @@ with tab_register:
 
     st.write("接客事例を入力してください")
 
+    # ユーザー・カテゴリ・結果の選択肢を DB から読む（名前→ID の対応表も作る）
+    try:
+        user_ids = {row["name"]: row["id"] for row in get_users()}
+        category_ids = {row["name"]: row["id"] for row in get_categories()}
+        result_ids = {row["name"]: row["id"] for row in get_results()}
+    except RuntimeError as error:
+        st.error(str(error))
+        st.stop()
+
     # ユーザー選択（No.1 ユーザー選択）
-    selected_user = st.selectbox(
-        "ユーザー",
-        ["選択してください", "田中 太郎", "山田 花子", "佐藤 健一"]
-    )
+    selected_user = st.selectbox("ユーザー", ["選択してください", *user_ids])
 
     # 商品カテゴリ選択（No.2 入力フォーム）
-    selected_category = st.selectbox(
-        "商品カテゴリ",
-        ["選択してください", "エアコン", "冷蔵庫", "洗濯機"]
-    )
+    selected_category = st.selectbox("商品カテゴリ", ["選択してください", *category_ids])
 
     # 結果選択
-    selected_result = st.selectbox(
-        "結果",
-        ["選択してください", "成約", "検討", "失注"]
-    )
+    selected_result = st.selectbox("結果", ["選択してください", *result_ids])
 
     # 顧客属性
     customer_attribute = st.text_area(
@@ -195,26 +196,27 @@ with tab_register:
             st.warning("結果を選択してください。")
 
         else:
-            # 登録する事例データをまとめる
+            # 名前を ID に変えて、DB に保存する形にまとめる（名前→ID の変換は画面側）
             data = {
-                "user": selected_user,
-                "category": selected_category,
-                "result": selected_result,
+                "user_id": user_ids[selected_user],
+                "product_category_id": category_ids[selected_category],
+                "result_id": result_ids[selected_result],
                 "customer_attribute": customer_attribute,
                 "customer_needs": customer_needs,
                 "proposal": proposal,
                 "reflection": reflection,
                 "report_date": date.today().isoformat(),
-                # 【飯酒盃】「類似事例を見る」で AI が作ったキーワード（未実行なら空）
-                "keywords": st.session_state.case_data.get("keywords", []),
             }
+            # 【飯酒盃】「類似事例を見る」で AI が作ったキーワード（未実行なら空）
+            keywords = st.session_state.case_data.get("keywords", [])
 
-            st.success("事例データをまとめました。")
-            st.write(data)
-
-            # 仮の登録処理
-            st.success("事例を登録しました！")
-
+            try:
+                with st.spinner("登録しています..."):
+                    knowledge_id = create_knowledge(data, keywords)
+                st.success("事例を登録しました！")
+            except RuntimeError as error:
+                # 入力欄の内容は残っているので、そのままもう一度押せる（NF-04）
+                st.error(str(error))
 
 #===== 【さやねー】入力フォーム ここまで =====
 
