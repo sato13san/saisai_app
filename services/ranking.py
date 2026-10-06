@@ -118,14 +118,14 @@ class SearchEngine:
         # indexは事例の位置、base_scoreはその事例の類似度
         # 同じ位置の元データとAND確認用の文章を、以下の処理で参照する。
         for index, base_score in enumerate(similarities):
-            # 今回のAND条件を追加。すべての検索結果が含まれるか確認する。
-            # 最初は一致と仮定し、含まれない語が1つでも見つかればFalseとする。
-            matched = True
+            # AND検索からOR検索に変更
+            # 最初は不一致と仮定し、含まれる語が1つでも見つかればTrueとする。
+            matched = False
             for word in words:
-                if word not in self.search_texts[index]:
-                    matched = False
+                if word in self.search_texts[index]:
+                    matched = True
                     break
-            # AND条件を満たさなかった事例は追加せず、次の事例に進む。
+            # OR条件を満たさなかった事例は追加せず、次の事例に進む。
             # continueはsearch関数全体の終了ではなく、このfor文の次の周回を意味する。
             if not matched:
                 continue

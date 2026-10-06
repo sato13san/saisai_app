@@ -243,7 +243,7 @@ from services.search import search_knowledge
 
 def render_search_tab():
     st.subheader("ナレッジ検索")
-    st.caption("検索語を入力してください。複数語はスペースで区切ります（AND検索）。")
+    st.caption("検索語を入力してください。複数語はスペースで区切ります（OR検索）。")  # AND検索からOR検索に変更
 
     try:
         #  入力欄に並べる選択肢をDBから準備する。
