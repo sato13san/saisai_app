@@ -6,7 +6,12 @@ from llm.tools import generate_keywords
 #===== 【さやねー】いささん作業：find_similar(case: dict, top_k=3)を呼び出す設計（後で↓頭の＃を外す） =====
 from services.similar import find_similar
 from services.database import get_users, get_categories, get_results, create_knowledge
+from services.check import find_other_categories
 #===== 【さやねー】追加ここまで =====
+#===== 【いさ】エラーチェック =====
+from services.database import get_users, get_categories, get_results, create_knowledge
+from services.check import find_other_categories
+#===== 【いさ】追加ここまで =====
 
 st.set_page_config(
     page_title="テクゼロン電気　お客さまナレッジデータベース",
@@ -146,6 +151,18 @@ with tab_register:
             st.session_state.similar_error = "類似事例を表示できませんでした。時間をおいてもう一度お試しください。"
         # 新しく探したときは、最初の1件だけ表示する状態に戻す
         st.session_state.show_all_similar = False
+
+    # ===== 【飯酒盃】カテゴリと内容の食い違いチェック（No.3） ここから =====
+    # 入力内容のカテゴリと内容が食い違っていないかをチェック
+    others = find_other_categories(
+        st.session_state.case_data.get("category", ""),
+        st.session_state.case_data.get("customer_needs", "") + 
+    st.session_state.case_data.get("proposal", "")
+    )
+    if others:
+        st.warning(f"注意！入力内容に「{'・'.join(others)}」に関する言葉があります。"
+               f"商品カテゴリは「{st.session_state.case_data['category']}」で合っていますか？")
+    # ===== 【飯酒盃】カテゴリと内容の食い違いチェック ここまで =====
 
     # ===== 【飯酒盃】類似事例の表示（最初は1件、「他の事例を見る」で最大3件） ここから =====
     # ボタンの外なので、保存されたデータがあれば再実行のたびに表示される
