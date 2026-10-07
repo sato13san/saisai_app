@@ -322,9 +322,7 @@ with tab_search:
     else:
         # try内の取得が成功したときだけ、検索フォームと結果を表示する。
         # 名前にsearch_を付け、登録タブで使う変数と区別する。
-        search_category_names = {}
-        for category in search_categories:
-            search_category_names[category["id"]] = category["name"]
+        search_category_names = {row["id"]: row["name"] for row in search_categories}
 
         # フォーム内の入力をまとめ、検索ボタンで送信する
         with st.form("knowledge_search_form"):
