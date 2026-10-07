@@ -218,8 +218,58 @@ with tab_register:
             "今回の接客を振り返って、気づいたことや次回に活かしたいことを入力してください。",
             placeholder="例：お客様の家族構成をもう少し詳しく聞いてから、容量を提案するとよかった。"
         )
-    # 事例登録ボタン
-    if st.button("事例を登録する"):
+#===== 【さやねー】事例登録時に誤りがあった場合の選択ボタンセット =====
+
+# 登録確認画面の初期状態
+if "show_register_confirmation" not in st.session_state:
+    st.session_state.show_register_confirmation = False
+# 確認画面のときだけボタンを表示
+if st.session_state.show_register_confirmation:
+
+
+    # 確認画面のボタン
+    col_back, col_register = st.columns(2)
+
+    with col_back:
+        if st.button("戻って修正"):
+            st.session_state.show_register_confirmation = False
+            st.rerun()
+
+    with col_register:
+        if st.button("この内容で登録する", type="primary"):
+
+            # DBに保存するデータを作成
+            data = {
+                "user_id": user_ids[selected_user],
+                "product_category_id": category_ids[selected_category],
+                "result_id": result_ids[selected_result],
+                "customer_attribute": customer_attribute,
+                "customer_needs": customer_needs,
+                "proposal": proposal,
+                "reflection": reflection,
+                "report_date": report_date.isoformat(),
+            }
+
+            # 「類似事例を見る」で生成したキーワードを取得
+            keywords = st.session_state.case_data.get("keywords", [])
+
+            try:
+                with st.spinner("登録しています..."):
+                    knowledge_id = create_knowledge(data, keywords)
+
+                st.success("事例を登録しました！")
+
+            except RuntimeError as error:
+                st.error(str(error))
+
+# 登録確認画面を表示するための状態
+if "show_register_confirmation" not in st.session_state:
+    st.session_state.show_register_confirmation = False
+#===== 【さやねー】事例登録時に誤りがないかのアラート表示追加 =====
+
+# 確認画面を表示していないときだけ「事例を登録する」を表示
+if not st.session_state.show_register_confirmation:
+    if st.button("事例を登録する", type="primary"):
 
         # 必須項目の入力チェック
         if selected_user == "選択してください":
@@ -232,27 +282,23 @@ with tab_register:
             st.warning("結果を選択してください。")
 
         else:
-            # 名前を ID に変えて、DB に保存する形にまとめる（名前→ID の変換は画面側）
-            data = {
-                "user_id": user_ids[selected_user],
-                "product_category_id": category_ids[selected_category],
-                "result_id": result_ids[selected_result],
-                "customer_attribute": customer_attribute,
-                "customer_needs": customer_needs,
-                "proposal": proposal,
-                "reflection": reflection,
-                "report_date": report_date.isoformat(),
-            }
-            # 【飯酒盃】「類似事例を見る」で AI が作ったキーワード（未実行なら空）
-            keywords = st.session_state.case_data.get("keywords", [])
+            st.session_state.show_register_confirmation = True
+            st.rerun()
 
-            try:
-                with st.spinner("登録しています..."):
-                    knowledge_id = create_knowledge(data, keywords)
-                st.success("事例を登録しました！")
-            except RuntimeError as error:
-                # 入力欄の内容は残っているので、そのままもう一度押せる（NF-04）
-                st.error(str(error))
+# 登録内容の確認
+if st.session_state.show_register_confirmation:
+    st.subheader("登録内容の確認")
+
+    st.write(f"**ユーザー：** {selected_user}")
+    st.write(f"**商品カテゴリ：** {selected_category}")
+    st.write(f"**結果：** {selected_result}")
+    st.write(f"**報告日：** {report_date}")
+    st.write(f"**顧客属性：** {customer_attribute}")
+    st.write(f"**顧客ニーズ：** {customer_needs}")
+    st.write(f"**提案内容：** {proposal}")
+    st.write(f"**振り返り：** {reflection}")
+
+
 
 #===== 【さやねー】入力フォーム ここまで =====
 
