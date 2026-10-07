@@ -50,9 +50,10 @@ with tab_register:
     if "similar_cases" not in st.session_state:
         st.session_state.similar_cases = []
 
+#===== 【さやねー】冒頭3問を横並びにする =====
     st.write("接客事例を入力してください")
 
-    # ユーザー・カテゴリ・結果の選択肢を DB から読む（名前→ID の対応表も作る）
+    # ユーザー・カテゴリ・結果の選択肢をDBから取得
     try:
         user_ids = {row["name"]: row["id"] for row in get_users()}
         category_ids = {row["name"]: row["id"] for row in get_categories()}
@@ -61,15 +62,32 @@ with tab_register:
         st.error(str(error))
         st.stop()
 
-    # ユーザー選択（No.1 ユーザー選択）
-    selected_user = st.selectbox("ユーザー", ["選択してください", *user_ids])
+    # ユーザー・商品カテゴリ・結果を横並びに表示
+    col_user, col_category, col_result = st.columns(3)
 
-    # 商品カテゴリ選択（No.2 入力フォーム）
-    selected_category = st.selectbox("商品カテゴリ", ["選択してください", *category_ids])
+    with col_user:
+        selected_user = st.selectbox(
+            "ユーザー",
+            ["選択してください", *user_ids]
+        )
 
-    # 結果選択
-    selected_result = st.selectbox("結果", ["選択してください", *result_ids])
+    with col_category:
+        selected_category = st.selectbox(
+            "商品カテゴリ",
+            ["選択してください", *category_ids]
+        )
 
+    with col_result:
+        selected_result = st.selectbox(
+            "結果",
+            ["選択してください", *result_ids]
+        )
+    
+    # 報告日
+    report_date = st.date_input(
+    "報告日",
+    value=date.today()
+)
     # 顧客属性
     customer_attribute = st.text_area(
         "顧客属性",
@@ -223,7 +241,7 @@ with tab_register:
                 "customer_needs": customer_needs,
                 "proposal": proposal,
                 "reflection": reflection,
-                "report_date": date.today().isoformat(),
+                "report_date": report_date.isoformat(),
             }
             # 【飯酒盃】「類似事例を見る」で AI が作ったキーワード（未実行なら空）
             keywords = st.session_state.case_data.get("keywords", [])
