@@ -303,7 +303,7 @@ with tab_register:
     #===== 【さやねー】入力フォーム ここまで =====
 
 # =====【いっさん】検索タブ ここから =====
-from services.database import get_categories, get_report_years
+from services.database import get_categories, get_report_years, get_results
 from services.search import search_knowledge
 
 # 検索結果の保存先を1か所で定義する。以前と同じキーなので保持方法は変わらない。
@@ -317,12 +317,17 @@ with tab_search:
         #  入力欄に並べる選択肢をDBから準備する。
         search_categories = get_categories()
         search_years = get_report_years()
+        search_result_options = get_results()
     except RuntimeError as error:
         st.error(str(error))
     else:
         # try内の取得が成功したときだけ、検索フォームと結果を表示する。
         # 名前にsearch_を付け、登録タブで使う変数と区別する。
         search_category_names = {row["id"]: row["name"] for row in search_categories}
+        # 【追加】接客結果ID → 接客結果名
+        search_result_names = {
+            row["id"]: row["name"] for row in search_result_options
+        }
 
         # フォーム内の入力をまとめ、検索ボタンで送信する
         with st.form("knowledge_search_form"):
@@ -331,7 +336,8 @@ with tab_search:
                 placeholder="例：省エネ 30代",
                 key="knowledge_search_query",
             )
-            search_left, search_right = st.columns(2)
+            # 製品カテゴリ、結果、報告年で絞れるようにする
+            search_left, search_center, search_right = st.columns(3)
             with search_left:
                 # 画面には名前を表示し、検索処理にはカテゴリIDを渡す。
                 search_category_id = st.selectbox(
@@ -341,6 +347,16 @@ with tab_search:
                         "すべて" if value is None else search_category_names[value]
                     ),
                     key="knowledge_search_category",
+                )
+            with search_center:
+                # 画面には名前を表示し、検索処理には結果IDを渡す
+                search_result_id = st.selectbox(
+                    "結果",
+                    [None, *search_result_names],
+                    format_func=lambda value: (
+                        "すべて" if value is None else search_result_names[value]
+                    ),
+                    key = "knowledge_search_result"
                 )
             with search_right:
                 # Noneは年で絞り込まないことを表す。表示だけ「2026年」の形にする。
@@ -362,17 +378,25 @@ with tab_search:
                 try:
                     with st.spinner("検索しています..."):
                         search_results = search_knowledge(
-                            search_query, search_category_id, search_year
+                            query=search_query,
+                            category_id=search_category_id,
+                            year=search_year,
+                            result_id=search_result_id,
                         )
                 except RuntimeError as error:
                     st.error(str(error))
                 else:
                     st.session_state[SEARCH_OUTPUT_KEY] = {
-                        "query": search_query,
-                        "category": search_category_names.get(search_category_id, "すべて"),
-                        "year": search_year,
-                        "results": search_results,
-                    }
+                    "query": search_query,
+                    "category": search_category_names.get(
+                        search_category_id, "すべて"
+                    ),
+                    "result": search_result_names.get(
+                        search_result_id, "すべて"
+                    ),
+                    "year": search_year,
+                    "results": search_results,
+                }
 
         # ④ 保存済みの結果がある場合だけ表示する。
         # 初回はNone。検索成功で0件だった場合は辞書があるので、0件の案内を表示する。
@@ -383,7 +407,9 @@ with tab_search:
             )
             st.text(
                 f"検索語：{search_output['query']} ／ "
-                f"カテゴリ：{search_output['category']} ／ 報告年：{search_year_label}"
+                f"カテゴリ：{search_output['category']} ／ "
+                f"結果：{search_output.get('result', 'すべて')} ／ "
+                f"報告年：{search_year_label}"
             )
             search_results = search_output["results"]
             st.caption(f"表示：{len(search_results)}件（関連度順・最大20件）")
@@ -438,6 +464,6 @@ with tab_search:
                 # OR検索では語を減らしても候補は増えないため、変更や絞り込み解除を案内する。
                 st.info(
                     "該当する事例がありません。検索語を変えるか、"
-                    "カテゴリ・報告年の絞り込みを解除してください。"
+                    "カテゴリ・結果・報告年の絞り込みを解除してください。"
                 )
 # =====【いっさん】検索タブ ここまで =====
