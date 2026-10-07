@@ -4,7 +4,9 @@ from datetime import date
 import streamlit as st
 from llm.tools import generate_keywords
 #===== 【さやねー】いささん作業：find_similar(case: dict, top_k=3)を呼び出す設計（後で↓頭の＃を外す） =====
-#from services.similar import find_similar
+from services.similar import find_similar
+from services.database import get_users, get_categories, get_results, create_knowledge
+from services.check import find_other_categories
 #===== 【さやねー】追加ここまで =====
 
 st.set_page_config(
@@ -44,26 +46,44 @@ with tab_register:
     if "similar_cases" not in st.session_state:
         st.session_state.similar_cases = []
 
+#===== 【さやねー】冒頭3問を横並びにする =====
     st.write("接客事例を入力してください")
 
-    # ユーザー選択（No.1 ユーザー選択）
-    selected_user = st.selectbox(
-        "ユーザー",
-        ["選択してください", "田中 太郎", "山田 花子", "佐藤 健一"]
-    )
+    # ユーザー・カテゴリ・結果の選択肢をDBから取得
+    try:
+        user_ids = {row["name"]: row["id"] for row in get_users()}
+        category_ids = {row["name"]: row["id"] for row in get_categories()}
+        result_ids = {row["name"]: row["id"] for row in get_results()}
+    except RuntimeError as error:
+        st.error(str(error))
+        st.stop()
 
-    # 商品カテゴリ選択（No.2 入力フォーム）
-    selected_category = st.selectbox(
-        "商品カテゴリ",
-        ["選択してください", "エアコン", "冷蔵庫", "洗濯機"]
-    )
+    # ユーザー・商品カテゴリ・結果を横並びに表示
+    col_user, col_category, col_result = st.columns(3)
 
-    # 結果選択
-    selected_result = st.selectbox(
-        "結果",
-        ["選択してください", "成約", "検討", "失注"]
-    )
+    with col_user:
+        selected_user = st.selectbox(
+            "ユーザー",
+            ["選択してください", *user_ids]
+        )
 
+    with col_category:
+        selected_category = st.selectbox(
+            "商品カテゴリ",
+            ["選択してください", *category_ids]
+        )
+
+    with col_result:
+        selected_result = st.selectbox(
+            "結果",
+            ["選択してください", *result_ids]
+        )
+    
+    # 報告日
+    report_date = st.date_input(
+    "報告日",
+    value=date.today()
+)
     # 顧客属性
     customer_attribute = st.text_area(
         "顧客属性",
@@ -169,7 +189,7 @@ with tab_register:
                 "customer_needs": customer_needs,
                 "proposal": proposal,
                 "reflection": reflection,
-                "report_date": date.today().isoformat()
+                "report_date": report_date.isoformat(),
             }
 
             st.success("事例データをまとめました。")
