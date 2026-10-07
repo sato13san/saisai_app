@@ -8,6 +8,10 @@ from services.similar import find_similar
 from services.database import get_users, get_categories, get_results, create_knowledge
 from services.check import find_other_categories
 #===== 【さやねー】追加ここまで =====
+#===== 【いさ】エラーチェック =====
+from services.database import get_users, get_categories, get_results, create_knowledge
+from services.check import find_other_categories
+#===== 【いさ】追加ここまで =====
 
 st.set_page_config(
     page_title="テクゼロン電気　お客さまナレッジデータベース",
@@ -136,28 +140,76 @@ with tab_register:
         st.write(
             f"提案内容：{st.session_state.case_data['proposal']}"
         )
-# 仮の類似事例（後でいささんデータつなぎ後に修正が必要なパート）
-        st.session_state.similar_cases = [
-            {
-                "title": "冷蔵庫の容量と省エネを重視した事例",
-                "detail": "40代夫婦のお客様に500Lクラスの省エネ冷蔵庫を提案した事例です。"
-            },
-            {
-                "title": "家族構成に合わせて冷蔵庫を提案した事例",
-                "detail": "子どもがいるご家庭に、容量と使いやすさを重視して提案した事例です。"
-            },
-            {
-                "title": "電気代を重視した冷蔵庫の提案例",
-                "detail": "ランニングコストを気にされるお客様に、省エネ性能を説明した事例です。"
-            }
-        ]
+# 類似事例を探して保存する（ここまでがボタンの中）
+        # DB に接続できないなどで失敗しても、画面全体は止めずにメッセージを出す（NF-04）
 
-        # 類似事例を表示
+        # ===== 【飯酒盃】AIキーワード生成（No.6） ここから =====
+        # 入力内容から AI が検索用キーワードを作る。失敗しても空のリストが返るだけで、処理は止まらない
+        with st.spinner("キーワード生成中..."):
+            st.session_state.case_data["keywords"] = generate_keywords(
+                case_text="\n".join([
+                    f"顧客属性：{customer_attribute}",
+                    f"顧客ニーズ：{customer_needs}",
+                    f"提案内容：{proposal}",
+                ]),
+                category=selected_category,
+                result=selected_result,
+            )
+        # ===== 【飯酒盃】AIキーワード生成 ここまで =====
+
+        try:
+            with st.spinner("類似事例を探しています..."):
+                st.session_state.similar_cases = find_similar(st.session_state.case_data, top_k=3)
+            st.session_state.similar_error = None
+        except RuntimeError as error:
+            # database.py が出す「事例を取得できませんでした」などのメッセージをそのまま表示する
+            st.session_state.similar_cases = []
+            st.session_state.similar_error = str(error)
+        except Exception:
+            st.session_state.similar_cases = []
+            st.session_state.similar_error = "類似事例を表示できませんでした。時間をおいてもう一度お試しください。"
+        # 新しく探したときは、最初の1件だけ表示する状態に戻す
+        st.session_state.show_all_similar = False
+
+    # ===== 【飯酒盃】カテゴリと内容の食い違いチェック（No.3） ここから =====
+    # 入力内容のカテゴリと内容が食い違っていないかをチェック
+    others = find_other_categories(
+        st.session_state.case_data.get("category", ""),
+        st.session_state.case_data.get("customer_needs", "") + 
+    st.session_state.case_data.get("proposal", "")
+    )
+    if others:
+        st.warning(f"注意！入力内容に「{'・'.join(others)}」に関する言葉があります。"
+               f"商品カテゴリは「{st.session_state.case_data['category']}」で合っていますか？")
+    # ===== 【飯酒盃】カテゴリと内容の食い違いチェック ここまで =====
+
+    # ===== 【飯酒盃】類似事例の表示（最初は1件、「他の事例を見る」で最大3件） ここから =====
+    # ボタンの外なので、保存されたデータがあれば再実行のたびに表示される
+    keywords = st.session_state.case_data.get("keywords") if st.session_state.case_data else None
+    if keywords:
+        st.markdown("**生成されたキーワード：** " + " ".join(f"`{k}`" for k in keywords))
+    elif st.session_state.case_data:
+        st.caption("キーワードを生成できませんでした（キーワードなしで類似事例を探しています）。")
+
+    if st.session_state.get("similar_error"):
+        # 取得に失敗したときは「見つからなかった」と区別して、エラーとして表示する
+        st.error(st.session_state.similar_error)
+    elif st.session_state.similar_cases:
         st.subheader("類似事例")
-
-        for case in st.session_state.similar_cases:
+        show_all = st.session_state.get("show_all_similar", False)
+        shown_cases = st.session_state.similar_cases if show_all else st.session_state.similar_cases[:1]
+        for case in shown_cases:
             with st.expander(case["title"]):
                 st.write(case["detail"])
+
+        # まだ表示していない事例があるときだけ、ボタンを出す
+        rest = len(st.session_state.similar_cases) - len(shown_cases)
+        if rest > 0 and st.button(f"他の事例を見る（あと{rest}件）"):
+            st.session_state.show_all_similar = True
+            st.rerun()
+    elif st.session_state.case_data:
+        st.info("似ている過去事例は見つかりませんでした。")
+    # ===== 【飯酒盃】類似事例の表示 ここまで =====
 
     # 振り返り入力（No.5 振り返り入力・事例登録）
     st.subheader("振り返り")
@@ -180,24 +232,27 @@ with tab_register:
             st.warning("結果を選択してください。")
 
         else:
-            # 登録する事例データをまとめる
+            # 名前を ID に変えて、DB に保存する形にまとめる（名前→ID の変換は画面側）
             data = {
-                "user": selected_user,
-                "category": selected_category,
-                "result": selected_result,
+                "user_id": user_ids[selected_user],
+                "product_category_id": category_ids[selected_category],
+                "result_id": result_ids[selected_result],
                 "customer_attribute": customer_attribute,
                 "customer_needs": customer_needs,
                 "proposal": proposal,
                 "reflection": reflection,
                 "report_date": report_date.isoformat(),
             }
+            # 【飯酒盃】「類似事例を見る」で AI が作ったキーワード（未実行なら空）
+            keywords = st.session_state.case_data.get("keywords", [])
 
-            st.success("事例データをまとめました。")
-            st.write(data)
-
-            # 仮の登録処理
-            st.success("事例を登録しました！")
-
+            try:
+                with st.spinner("登録しています..."):
+                    knowledge_id = create_knowledge(data, keywords)
+                st.success("事例を登録しました！")
+            except RuntimeError as error:
+                # 入力欄の内容は残っているので、そのままもう一度押せる（NF-04）
+                st.error(str(error))
 
 #===== 【さやねー】入力フォーム ここまで =====
 
@@ -207,7 +262,7 @@ from services.search import search_knowledge
 
 def render_search_tab():
     st.subheader("ナレッジ検索")
-    st.caption("検索語を入力してください。複数語はスペースで区切ります（AND検索）。")
+    st.caption("検索語を入力してください。複数語はスペースで区切ります（OR検索）。")  # AND検索からOR検索に変更
 
     try:
         #  入力欄に並べる選択肢をDBから準備する。
@@ -299,7 +354,7 @@ def render_search_tab():
             for tag in tag_names:
                 # データ内の記号・改行でタグの表示が崩れるのを防ぐ
                 tag = tag.replace("`", "").replace("\n", " ").replace("\r", " ")
-                tags.append(f"`{tag}")
+                tags.append(f"`{tag}`")
             st.markdown(" ".join(tags))
             st.text(record["preview"] or "本文なし")
             # クリックで開閉できる領域を作り、事例の全文を表示する。
