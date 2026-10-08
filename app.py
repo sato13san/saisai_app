@@ -300,8 +300,8 @@ with tab_register:
 
 # ===== 【飯酒盃】文章で相談する（案B） ここから =====
 def render_consult():
-    st.subheader("文章で相談する")
-    st.caption("お困りごとを教えてください。似た社内事例を探してまとめます。")
+    st.subheader("フリーワード入力")
+    st.caption("どのようなことでお困りですか。似た社内事例を探してまとめます。")
     with st.form("consult_form"):
         consultation = st.text_area("相談内容", placeholder="例：まとめ買いで冷凍室が大きい冷蔵庫を探している、予算重視のお客様にどう提案したらいい？")
         submitted = st.form_submit_button("相談する", type="primary")
@@ -356,7 +356,7 @@ from services.search import search_knowledge
 SEARCH_OUTPUT_KEY = "knowledge_search_output"
 
 with tab_search:
-    tab_keyword, tab_consult = st.tabs(["🔍 キーワードで探す", "💬 文章で相談する"])
+    tab_keyword, tab_consult = st.tabs(["🔍 キーワードで探す", "💬 フリーワードで相談する"])
 with tab_consult:
     render_consult()
 with tab_keyword:
