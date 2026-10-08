@@ -2,16 +2,12 @@
 from datetime import date
 #===== 【さやねー】追加ここまで =====
 import streamlit as st
-from llm.tools import generate_keywords
+from llm.tools import generate_keywords, extract_search_query, summarize_cases
 #===== 【さやねー】いささん作業：find_similar(case: dict, top_k=3)を呼び出す設計（後で↓頭の＃を外す） =====
 from services.similar import find_similar
 from services.database import get_users, get_categories, get_results, create_knowledge
 from services.check import find_other_categories
 #===== 【さやねー】追加ここまで =====
-#===== 【いさ】エラーチェック =====
-from services.database import get_users, get_categories, get_results, create_knowledge
-from services.check import find_other_categories
-#===== 【いさ】追加ここまで =====
 
 st.set_page_config(
     page_title="テクゼロン電気　お客さまナレッジデータベース",
@@ -302,6 +298,56 @@ with tab_register:
 
     #===== 【さやねー】入力フォーム ここまで =====
 
+# ===== 【飯酒盃】文章で相談する（案B） ここから =====
+def render_consult():
+    st.subheader("文章で相談する")
+    st.caption("お困りごとを教えてください。似た社内事例を探してまとめます。")
+    with st.form("consult_form"):
+        consultation = st.text_area("相談内容", placeholder="例：まとめ買いで冷凍室が大きい冷蔵庫を探している、予算重視のお客様にどう提案したらいい？")
+        submitted = st.form_submit_button("相談する", type="primary")
+    if not submitted:
+        return
+    if not consultation.strip():
+        st.warning("相談内容を入力してください。")
+        return
+
+    # ① 要約の場所を、一番上に先に確保する
+    summary_area = st.empty()
+    summary_area.info("事例をまとめています…")
+
+    # ② 相談文から語を取り出し、石内さんの検索（search_knowledge）で探す
+    try:
+        with st.spinner("似ている事例を探しています…"):
+            query = extract_search_query(consultation)
+            words = query["words"] or generate_keywords(consultation)
+            category_ids = {row["name"]: row["id"] for row in get_categories()}
+            results = search_knowledge(" ".join(words), category_id=category_ids.get(query["category"])) if words else []
+    except RuntimeError as error:
+        summary_area.empty()
+        st.error(str(error))
+        return
+    if not results:
+        summary_area.empty()
+        st.info("似ている事例が見つかりませんでした。言い方を変えて相談してみてください。")
+        return
+
+    # ③ 検索結果を下に表示する（要約より先に出る）
+    st.caption(f"検索に使った語：{'、'.join(words)}")
+    for number, record in enumerate(results[:5], 1):
+        with st.expander(f"事例{number}：【{record['result_name']}】{record['category_name']}｜{record['customer_needs'][:40]}"):
+            st.markdown(f"**顧客属性：** {record.get('customer_attribute') or '未入力'}")
+            st.markdown(f"**顧客ニーズ：** {record.get('customer_needs') or '未入力'}")
+            st.markdown(f"**提案内容：** {record.get('proposal') or '未入力'}")
+            st.markdown(f"**振り返り：** {record.get('reflection') or '未入力'}")
+
+    # ④ 上位3件を要約し、確保しておいた一番上の場所に入れる（失敗したら枠を消す）
+    summary = summarize_cases(consultation, results[:3])
+    if summary:
+        summary_area.info(summary + "\n\n※ AI による要約です。内容は下の事例でご確認ください。")
+    else:
+        summary_area.empty()
+# ===== 【飯酒盃】文章で相談する（案B） ここまで =====
+
 # =====【いっさん】検索タブ ここから =====
 from services.database import get_categories, get_report_years, get_results
 from services.search import search_knowledge
@@ -310,6 +356,10 @@ from services.search import search_knowledge
 SEARCH_OUTPUT_KEY = "knowledge_search_output"
 
 with tab_search:
+    tab_keyword, tab_consult = st.tabs(["🔍 キーワードで探す", "💬 文章で相談する"])
+with tab_consult:
+    render_consult()
+with tab_keyword:
     st.subheader("ナレッジ検索")
     st.caption("検索語を入力してください。複数語はスペースで区切ります（OR検索）。")  # AND検索からOR検索に変更
 
