@@ -15,6 +15,16 @@ st.set_page_config(
     layout="wide",
 )
 
+# =====【飯酒盃】ログインタブ ここから =====
+if not st.user.is_logged_in:
+    st.title("SAI-Hakken")
+    st.button("Google でログイン", on_click=st.login)
+    st.stop()
+
+st.sidebar.button("ログアウト", on_click=st.logout)
+login_email = st.user.email   # この値で users テーブルから担当者を探す
+## =====【飯酒盃】ログインタブ ここまで =====
+
 st.title("テクゼロン電気　お客さまナレッジデータベース")
 st.write("振り返りしたい接客事例について登録するアプリです。あわせて過去の類似接客事例も確認しましょう。")
 st.info("登録したい接客体験を入力してください。入力作業の後、ＤＢから成功事例を検索・表示・確認することができます。")
