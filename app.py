@@ -48,7 +48,7 @@ if st.session_state.pop("reset_form_pending", False):
     st.session_state["customer_needs"] = ""
     st.session_state["proposal"] = ""
     st.session_state["reflection"] = ""
-    st.session_state["selected_user"] = "選択してください"
+    st.session_state.pop("selected_user", None)  # 登録後も自分の名前に戻す
     st.session_state["selected_category"] = "選択してください"
     st.session_state["selected_result"] = "選択してください"
     
@@ -77,13 +77,21 @@ with tab_register:
 
     # ユーザー・カテゴリ・結果の選択肢をDBから取得
     try:
-        user_ids = {row["name"]: row["id"] for row in get_users()}
+        users = get_users()
+        user_ids = {row["name"]: row["id"] for row in users}
+        # ログイン中のメールから担当者名を引く（大文字・小文字の違いは無視する）
+        email_to_name = {row["email"].lower(): row["name"] for row in users if row.get("email")}
         category_ids = {row["name"]: row["id"] for row in get_categories()}
         result_ids = {row["name"]: row["id"] for row in get_results()}
     except RuntimeError as error:
         st.error(str(error))
         st.stop()
 
+    # 【飯酒盃】ログイン中の担当者を最初から選んでおく
+    login_name = email_to_name.get((login_email or "").lower())
+    if login_name and "selected_user" not in st.session_state:
+        st.session_state["selected_user"] = login_name
+        
     # ユーザー・商品カテゴリ・結果を横並びに表示
     col_user, col_category, col_result = st.columns(3)
 
@@ -148,7 +156,7 @@ with tab_register:
             "proposal": proposal
         }
 
-        st.success("入力内容を保存しました。")
+        st.success("入力内容を一時保存しました。")
 #　いささんデータつなぎ後に稼働するところ
         # 保存した事例データを確認
         st.write("保存した事例データ")
