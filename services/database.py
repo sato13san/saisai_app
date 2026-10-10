@@ -114,8 +114,10 @@ def get_report_years() -> list[int]:
     return years
 
 
-def list_knowledge(category_id=None, year=None) -> list[dict]:
-    """カテゴリ・報告年に合う事例を取得する。省略した条件は絞り込まない"""
+def list_knowledge(
+    category_id=None, year=None, result_id=None
+) -> list[dict]:
+    """カテゴリ・報告年・結果に合う事例を取得する。省略した条件は絞り込まない"""
     supabase = get_client() # 接続用の関数を呼び出し
     records = []            # 複数回に分けて取得する全事例を、このリストへ順番に蓄積する。
     start = 0               # 何行目から取得するかを表す開始位置。最初は0行目から取得する。
@@ -142,6 +144,9 @@ def list_knowledge(category_id=None, year=None) -> list[dict]:
                 query = query.eq("product_category_id", category_id)
             # 年を選んだときは1月1日〜12月31日の範囲を条件に加える。
             # gteは以上、lteは以下。比較対象は登録日時ではなく報告日。
+            # 【追加】接客結果で絞り込む。Noneなら絞り込まない。
+            if result_id is not None:
+                query = query.eq("result_id", result_id)
             if year is not None:
                 query = query.gte("report_date", f"{int(year):04d}-01-01")
                 query = query.lte("report_date", f"{int(year):04d}-12-31")

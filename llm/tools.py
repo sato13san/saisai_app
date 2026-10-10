@@ -1,4 +1,5 @@
 import re
+import json
 
 import streamlit as st
 from openai import OpenAI
@@ -10,7 +11,6 @@ EXAMPLE_KEYWORDS = (
     "設置スペース、寸法確認、時短、乾燥機能、共働き、高齢者、操作の簡単さ、体験提案、"
     "ニーズ深掘り、選択肢絞り込み、熱中症対策、要望とのずれ"
 )
-
 
 def generate_keywords(
     case_text: str,
@@ -96,3 +96,67 @@ def generate_keywords(
     except Exception:
         # AI接続などに失敗した場合
         return []
+
+def extract_search_query(consultation:str) -> dict:
+    """相談文から、検索に使うカテゴリと検索語を取り出す。失敗したら空の値を返す。"""
+    try:
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        response = client.responses.create(
+            model="gpt-5-nano",
+            reasoning={"effort": "minimal"},
+            input=f"""家電量販店の販売員の相談文から、社内の接客事例を検索するための情報を取り出してください。
+- category：相談文に出てくる商品がエアコン・冷蔵庫・洗濯機のどれか。商品名や「冷凍」「冷房」「ドラム式」などの言葉から判断する。分からなければ空文字
+- words：相談文の要点を表す語を2〜4個。1語は2〜6文字の短い言葉にし、相談文に出てくる言葉をなるべくそのまま使う（例：「ネット」「価格」「工事日程」）。「お客様」「提案」のような一般的すぎる語は入れない
+- 次の言葉は、相談文の内容に当てはまる場合だけ同じ表記で使う。当てはまらない言葉は使わない：{EXAMPLE_KEYWORDS}
+
+【相談文】
+{consultation}""",
+            text={"format": {
+                "type": "json_schema", "name": "search_query", "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "category": {"type": "string", "enum": ["エアコン", "冷蔵庫", "洗濯機", ""]},
+                        "words": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["category", "words"],
+                    "additionalProperties": False,
+                },
+            }},
+        )
+        data = json.loads(response.output_text)
+        return {"category": data["category"], "words": [w.strip() for w in data["words"] if w.strip()][:5]}
+    except Exception:
+        return {"category": "", "words": []}
+
+def summarize_cases(consultation: str, cases: list[dict]) -> str:
+    """見つかった社内事例だけをもとに、相談への要約を作る。失敗したら空文字を返す。"""
+    if not cases:
+        return ""
+    try:
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        case_text = "\n".join(
+            f"【事例{i}】 結果：{c.get('result_name', '')}/ニーズ: {c.get('customer_needs', '')}/"
+            f"提案: {c.get('proposal', '')}"
+            for i, c in enumerate(cases, 1)
+        )
+        response = client.responses.create(
+            model="gpt-5-nano",
+            reasoning={"effort": "low"},
+            input=f"""あなたは家電量販店の若手販売員を支える先輩です。
+            次の社内事例だけをもとに、相談への参考になるポイントを3〜4文でまとめてください。
+            - 事例に書かれていないことは書かない。一般論や推測で足さない
+            - 根拠にした事例を「（事例１）」のように示す
+            - 「〜すべき」「〜が有効」のような指導・評価の言い方は使わず、「〜した事例があります（事例1）」の形で書く
+            - 各事例の「結果」（成約・検討・失注）を必ず確認し、成約した事例と、失注・検討の事例を混ぜて書かない
+            - 失注・検討の事例は「〜して失注した事例があります」のように、結果がわかる書き方にする
+            - まとめの文では、事例に書かれていない行動や対策を書かない。成約した事例の行動だけを「〜した事例があります」と書く
+            
+            【相談】
+            {consultation}
+            【社内事例】
+            {case_text} """,
+        )
+        return response.output_text.strip()
+    except Exception:
+        return ""
