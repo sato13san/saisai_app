@@ -15,7 +15,8 @@ st.set_page_config(
     layout="wide",
 )
 
-# =====【飯酒盃】ログインタブ ここから =====
+# =====【飯酒盃】ログインタブ ここから ====
+
 if not st.user.is_logged_in:
     st.title("SAI-Hakken")
     st.button("Google でログイン", on_click=st.login)
@@ -25,9 +26,9 @@ st.sidebar.button("ログアウト", on_click=st.logout)
 login_email = st.user.email   # この値で users テーブルから担当者を探す
 ## =====【飯酒盃】ログインタブ ここまで =====
 
-st.title("テクゼロン電気　お客さまナレッジデータベース")
-st.write("振り返りしたい接客事例について登録するアプリです。あわせて過去の類似接客事例も確認しましょう。")
-st.info("登録したい接客体験を入力してください。入力作業の後、ＤＢから成功事例を検索・表示・確認することができます。")
+st.title("SAI-HAKKEN")
+st.write("接客事例を登録し、過去の成功事例から新たな気づきを発見しましょう。")
+st.caption("接客事例を入力してください。登録後は過去の事例を検索できます。")
 
 # タブ作成
 tab_register, tab_search = st.tabs(["事例登録", "ナレッジ検索"])
@@ -88,7 +89,7 @@ with tab_register:
 
     with col_user:
         selected_user = st.selectbox(
-            "ユーザー",
+            "登録担当者",
             ["選択してください", *user_ids],
         key="selected_user"
 )
@@ -102,7 +103,7 @@ with tab_register:
 
     with col_result:
         selected_result = st.selectbox(
-            "結果",
+            "接客結果",
             ["選択してください", *result_ids],
             key="selected_result"
 )
@@ -112,16 +113,16 @@ with tab_register:
     "報告日",
     value=date.today()
 )
-    # 顧客属性
+    #お客さまの状況・家族構成
     customer_attribute = st.text_area(
-    "顧客属性",
+    "お客さまの状況・家族構成",
     placeholder="例：40代夫婦、子ども2人",
     key="customer_attribute"
 )
 
-    # 顧客ニーズ
+    # お客さまのご希望・お困りごと
     customer_needs = st.text_area(
-    "顧客ニーズ",
+    "お客さまのご希望・お困りごと",
     placeholder="例：容量の大きい冷蔵庫が欲しい。電気代も抑えたい。",
     key="customer_needs"
 )
@@ -134,7 +135,10 @@ with tab_register:
 )
 
 # 類似事例を見るボタン（No.4 類似事例詳細表示）
-    if st.button("類似事例を見る"):
+    with st.container(horizontal=True):
+        show_similar = st.button("類似事例を見る", width="stretch")
+
+    if show_similar:
         st.session_state.case_data = {
             "user": selected_user,
             "category": selected_category,
@@ -161,7 +165,7 @@ with tab_register:
         )
 
         st.write(
-            f"顧客ニーズ：{st.session_state.case_data['customer_needs']}"
+            f"お客さまのご希望・お困りごと：{st.session_state.case_data['customer_needs']}"
         )
 
         st.write(
@@ -175,8 +179,8 @@ with tab_register:
         with st.spinner("キーワード生成中..."):
             st.session_state.case_data["keywords"] = generate_keywords(
                 case_text="\n".join([
-                    f"顧客属性：{customer_attribute}",
-                    f"顧客ニーズ：{customer_needs}",
+                    f"お客さまの状況・家族構成：{customer_attribute}",
+                    f"お客さまのご希望・お困りごと：{customer_needs}",
                     f"提案内容：{proposal}",
                 ]),
                 category=selected_category,
@@ -251,19 +255,31 @@ with tab_register:
     if "show_register_confirmation" not in st.session_state:
         st.session_state.show_register_confirmation = False
     # 確認画面のときだけボタンを表示
+    
+    # 登録内容の確認
     if st.session_state.show_register_confirmation:
+        st.subheader("登録内容の確認")
 
+        # 登録内容の表示
+        st.write(f"**ユーザー：** {selected_user}")
+        st.write(f"**商品カテゴリ：** {selected_category}")
+        st.write(f"**結果：** {selected_result}")
+        st.write(f"**報告日：** {report_date}")
+        st.write(f"**お客さまの状況・家族構成：** {customer_attribute}")
+        st.write(f"**お客さまのご希望・お困りごと：** {customer_needs}")
+        st.write(f"**提案内容：** {proposal}")
+        st.write(f"**振り返り：** {reflection}")
 
         # 確認画面のボタン
-        col_back, col_register = st.columns(2)
+        col_back, col_register = st.columns([1, 1.5])
 
         with col_back:
-            if st.button("戻って修正"):
+            if st.button("戻って修正", width="stretch"):
                 st.session_state.show_register_confirmation = False
                 st.rerun()
 
         with col_register:
-            if st.button("この内容で登録する", type="primary"):
+            if st.button("この内容で登録する", type="primary", width="stretch"):
 
                 # DBに保存するデータを作成
                 data = {
@@ -295,6 +311,7 @@ with tab_register:
                 except RuntimeError as error:
                     st.error(str(error))
 
+
     # 登録確認画面を表示するための状態
     if "show_register_confirmation" not in st.session_state:
         st.session_state.show_register_confirmation = False
@@ -302,7 +319,7 @@ with tab_register:
 
     # 確認画面を表示していないときだけ「事例を登録する」を表示
     if not st.session_state.show_register_confirmation:
-        if st.button("事例を登録する", type="primary"):
+        if st.button("事例を登録する", type="primary", width="stretch"):
 
             # 必須項目の入力チェック
             if selected_user == "選択してください":
@@ -318,18 +335,8 @@ with tab_register:
                 st.session_state.show_register_confirmation = True
                 st.rerun()
 
-    # 登録内容の確認
-    if st.session_state.show_register_confirmation:
-        st.subheader("登録内容の確認")
 
-        st.write(f"**ユーザー：** {selected_user}")
-        st.write(f"**商品カテゴリ：** {selected_category}")
-        st.write(f"**結果：** {selected_result}")
-        st.write(f"**報告日：** {report_date}")
-        st.write(f"**顧客属性：** {customer_attribute}")
-        st.write(f"**顧客ニーズ：** {customer_needs}")
-        st.write(f"**提案内容：** {proposal}")
-        st.write(f"**振り返り：** {reflection}")
+      
 
 
 
@@ -362,6 +369,7 @@ def render_consult():
     except RuntimeError as error:
         summary_area.empty()
         st.error(str(error))
+
         return
     if not results:
         summary_area.empty()
@@ -372,8 +380,8 @@ def render_consult():
     st.caption(f"検索に使った語：{'、'.join(words)}")
     for number, record in enumerate(results[:5], 1):
         with st.expander(f"事例{number}：【{record['result_name']}】{record['category_name']}｜{record['customer_needs'][:40]}"):
-            st.markdown(f"**顧客属性：** {record.get('customer_attribute') or '未入力'}")
-            st.markdown(f"**顧客ニーズ：** {record.get('customer_needs') or '未入力'}")
+            st.markdown(f"**お客さまの状況・家族構成：** {record.get('customer_attribute') or '未入力'}")
+            st.markdown(f"**お客さまのご希望・お困りごと：** {record.get('customer_needs') or '未入力'}")
             st.markdown(f"**提案内容：** {record.get('proposal') or '未入力'}")
             st.markdown(f"**振り返り：** {record.get('reflection') or '未入力'}")
 
@@ -540,8 +548,8 @@ with tab_keyword:
                         with st.expander("詳細を見る"):
                             st.text(f"投稿者：{page.get('user_name') or '未設定'}")
                             for label, field in [
-                                ("顧客属性", "customer_attribute"),
-                                ("顧客ニーズ", "customer_needs"),
+                                ("お客さまの状況・家族構成", "customer_attribute"),
+                                ("お客さまのご希望・お困りごと", "customer_needs"),
                                 ("提案内容", "proposal"),
                                 ("振り返り", "reflection"),
                             ]:
