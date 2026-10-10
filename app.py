@@ -40,8 +40,23 @@ tab_register, tab_search = st.tabs(["事例登録", "ナレッジ検索"])
 
 # ===== 【さやねー】入力フォームをここから作っていきます =====
 # 事例登録画面を作っていきます
+
+# 登録成功後、入力フォームを初期化する
+if st.session_state.pop("reset_form_pending", False):
+    st.session_state["customer_attribute"] = ""
+    st.session_state["customer_needs"] = ""
+    st.session_state["proposal"] = ""
+    st.session_state["reflection"] = ""
+    st.session_state["selected_user"] = "選択してください"
+    st.session_state["selected_category"] = "選択してください"
+    st.session_state["selected_result"] = "選択してください"
+    
 with tab_register:
     st.header("事例登録")
+
+    # 登録成功後のメッセージ表示
+    if st.session_state.pop("registration_success", False):
+        st.success("事例を登録しました！")
 
     # 入力時の注意
     st.info(
@@ -74,20 +89,23 @@ with tab_register:
     with col_user:
         selected_user = st.selectbox(
             "ユーザー",
-            ["選択してください", *user_ids]
-        )
+            ["選択してください", *user_ids],
+        key="selected_user"
+)
 
     with col_category:
         selected_category = st.selectbox(
             "商品カテゴリ",
-            ["選択してください", *category_ids]
-        )
+            ["選択してください", *category_ids],
+            key="selected_category"
+)
 
     with col_result:
         selected_result = st.selectbox(
             "結果",
-            ["選択してください", *result_ids]
-        )
+            ["選択してください", *result_ids],
+            key="selected_result"
+)
     
     # 報告日
     report_date = st.date_input(
@@ -96,21 +114,24 @@ with tab_register:
 )
     # 顧客属性
     customer_attribute = st.text_area(
-        "顧客属性",
-        placeholder="例：40代夫婦、子ども2人"
-    )
+    "顧客属性",
+    placeholder="例：40代夫婦、子ども2人",
+    key="customer_attribute"
+)
 
     # 顧客ニーズ
     customer_needs = st.text_area(
-        "顧客ニーズ",
-        placeholder="例：容量の大きい冷蔵庫が欲しい。電気代も抑えたい。"
-    )
+    "顧客ニーズ",
+    placeholder="例：容量の大きい冷蔵庫が欲しい。電気代も抑えたい。",
+    key="customer_needs"
+)
 
     # 提案内容
     proposal = st.text_area(
-        "提案内容",
-        placeholder="例：500Lの省エネ性能の高い冷蔵庫を提案した。"
-    )
+    "提案内容",
+    placeholder="例：500Lの省エネ性能の高い冷蔵庫を提案した。",
+    key="proposal"
+)
 
 # 類似事例を見るボタン（No.4 類似事例詳細表示）
     if st.button("類似事例を見る"):
@@ -221,10 +242,10 @@ with tab_register:
     st.subheader("振り返り")
     # いっさん作業　create_knowledge(data: dict, keywords: list[str]) -> str　がつながるまでの仮入力
     reflection = st.text_area(
-            "今回の接客を振り返って、気づいたことや次回に活かしたいことを入力してください。",
-            placeholder="例：お客様の家族構成をもう少し詳しく聞いてから、容量を提案するとよかった。"
-        )
-    #===== 【さやねー】事例登録時に誤りがあった場合の選択ボタンセット =====
+        "今回の接客を振り返って、気づいたことや次回に活かしたいことを入力してください。",
+        placeholder="例：お客様の家族構成をもう少し詳しく聞いてから、容量を提案するとよかった。",
+        key="reflection"
+    )
 
     # 登録確認画面の初期状態
     if "show_register_confirmation" not in st.session_state:
@@ -263,7 +284,13 @@ with tab_register:
                     with st.spinner("登録しています..."):
                         knowledge_id = create_knowledge(data, keywords)
 
-                    st.success("事例を登録しました！")
+                    st.session_state["registration_success"] = True
+                    st.session_state.show_register_confirmation = False
+
+                    # 次の画面表示で入力内容を初期化する
+                    st.session_state["reset_form_pending"] = True
+
+                    st.rerun()
 
                 except RuntimeError as error:
                     st.error(str(error))
