@@ -1,5 +1,8 @@
 import streamlit as st
 from supabase import create_client
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_client():
     """宿題のget_connection()に相当する、DB接続用の関数。"""
@@ -194,11 +197,13 @@ def list_knowledge(
             # 取得上限で途中の事例を見落とさないよう、次の範囲へ進む。
             # 実際の取得件数で進めるので、DB側の上限が500件未満でも対応。
             start += len(rows)
-    except Exception:
-        # 0件と通信・権限エラーを区別するため、失敗時に[]は返さない。
+    except Exception as error:
+        # 詳細はサーバー側のログへ出し、画面には案内だけを表示する。
+        logger.exception("list_knowledgeで事例の取得・整形に失敗しました")
+
         raise RuntimeError(
-            "事例を取得できませんでした。通信状態を確認してください。管理者は外部キー、SELECT権限・RLSを確認してください。"
-        ) from None
+            "事例を取得できませんでした。管理者に確認してください。"
+        ) from error
 
     # 取得と整形が終わった全事例を返す。ここでは順位付けはまだ行わない。
     return records
