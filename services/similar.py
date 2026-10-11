@@ -28,7 +28,12 @@ def _category_id(category_name: str):
 
 
 def _to_title_detail(record: dict) -> dict:
-    """画面表示用に title と detail の形へ整える。"""
+    """画面表示用に title と detail の形へ整える。
+    Args:
+        record: list_knowledgeで取得した事例の辞書
+    Returns:
+        id, user_id, referenced_count, title, detailを持つ辞書
+    """
     title = (
         f"【{record.get('result_name', '')}】{record.get('category_name', '')}｜"
         f"{record.get('customer_attribute', '')}（{record.get('report_date', '')}）"
@@ -39,7 +44,14 @@ def _to_title_detail(record: dict) -> dict:
         f"**振り返り：** {record.get('reflection', '')}",
         f"**キーワード：** {'、'.join(record.get('keywords') or [])}",
     ])
-    return {"title": title, "detail": detail}
+    # 参考履歴の保存と、自分の投稿かどうかの判定にも使う
+    return {
+        "id": record["id"],
+        "user_id": record["user_id"],
+        "referenced_count": record.get("referenced_count", 0),
+        "title": title,
+        "detail": detail,
+    }
 
 
 def find_similar(case: dict, top_k: int = 3) -> list[dict]:
@@ -48,8 +60,9 @@ def find_similar(case: dict, top_k: int = 3) -> list[dict]:
     Args:
         case: 登録画面の入力内容。category（カテゴリ名）、customer_attribute、
             customer_needs、proposal を使う。keywords があれば加味する。
+            top_k: 返す事例の最大件数。既定値は3
     Returns:
-        [{"title": ..., "detail": ...}, ...]。似た事例がなければ []。
+        id・user_id・referenced_count・title・detail を持つ辞書のリスト。似た事例がなければ []。
     """
     # 同じ商品カテゴリの事例だけを候補にする
     category_id = _category_id(case.get("category", ""))
