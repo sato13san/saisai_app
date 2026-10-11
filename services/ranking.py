@@ -30,7 +30,7 @@ class SearchEngine:
         # todo: Supabaseのknowledgeテーブルから持ってくる必要あり？
         self.pages = []             # 元のページデータを保持
         self.is_fitted = False      # インデックスが構築済みかどうかのフラグ
-        self.search_texts = []      # AND条件を確認するための、重みづけ前の本文
+        self.search_texts = []      # OR条件を確認するための、重みづけ前の本文
 
     def build_index(self, pages: list):
         """全ページのTF-IDFインデックスを構築する
@@ -69,7 +69,7 @@ class SearchEngine:
             search_text = " ".join([
                 keyword_text, needs, proposal, reflection, attribute
             ]).lower()
-            # この文章は「検索語をすべて含むか」の確認用として保存する。
+            # この文章は「検索語を1つでも含むか」の確認用として保存する。
             # corpusとは同じ事例順なので、後で同じindexを使って取り出せる。
             self.search_texts.append(search_text)
             if search_text.strip():
@@ -91,10 +91,28 @@ class SearchEngine:
             return
         # 全事例から特徴とIDFを学習し、同時に各事例を数値の行列へ変換する。
         # 行は事例、列は文字の特徴に対応する。完了後に準備済みフラグとたてる。
-        self.tfidf_matrix = self.vectorizer.fit_transform(corpus)
+        self.vectorizer.set_params(max_df=0.95 if len(corpus) > 1 else 1.0)
+        try:
+            self.tfidf_matrix = self.vectorizer.fit_transform(corpus)
+        except ValueError as error:
+            if "After pruning, no terms remain" not in str(error):
+                raise
+            self.vectorizer.set_params(max_df=1.0)
+            self.tfidf_matrix = self.vectorizer.fit_transform(corpus)
         self.is_fitted = True
 
-    def search(self, query: str, top_n: int = 20) -> list:
+    def search(self, query: str, top_n: int = 20, sort_by: str = "score") -> list:
+        """OR条件に合う前候補を並び替え、最後に件数を制限する。
+        
+        Args:
+            query: スペース区切りの検索語
+            top_n: 表示件数。最大20件
+            sort_by: "score"または"references"
+        Returns:
+            スコアを追加した事例の辞書リスト
+        """
+        if sort_by not in ("score", "references"):
+            raise ValueError("並び順はscoreまたはreference")
         # 準備前・空の検索語・表示件数が0以下の場合は、計算もせず空リストを返す。
         # strip()は前後の空白を除くため、スペースだけの入力もここで止まる。
         if not self.is_fitted or not query.strip() or top_n <= 0:
@@ -116,7 +134,7 @@ class SearchEngine:
 
         results = []
         # indexは事例の位置、base_scoreはその事例の類似度
-        # 同じ位置の元データとAND確認用の文章を、以下の処理で参照する。
+        # 同じ位置の元データとOR確認用の文章を、以下の処理で参照する。
         for index, base_score in enumerate(similarities):
             # AND検索からOR検索に変更
             # 最初は不一致と仮定し、含まれる語が1つでも見つかればTrueとする。
@@ -137,9 +155,17 @@ class SearchEngine:
 
         # 同スコアなら報告日が新しい順、ID順で並べる
         results.sort(key=lambda x: str(x["id"]))
-        results.sort(
-            key=lambda x: (x["relevance_score"], x.get("report_date") or ""),
-            reverse=True,
-        )
+        if sort_by == "references":
+            results.sort(
+                key=lambda x: (
+                    x.get("referenced_count") or 0,
+                    x["relevance_score"], x.get("report_date") or "",
+                ), reverse=True,
+            )
+        else:
+            results.sort(
+                key=lambda x: (x["relevance_score"], x.get("report_date") or ""),
+                reverse=True,
+            )
         # 要求された件数と20の小さい方を上限にする。
         return results[:min(top_n, 20)]
