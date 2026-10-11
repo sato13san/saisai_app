@@ -6,12 +6,12 @@ import streamlit as st
 from llm.tools import generate_keywords, extract_search_query, summarize_cases
 #===== 【さやねー】いささん作業：find_similar(case: dict, top_k=3)を呼び出す設計（後で↓頭の＃を外す） =====
 from services.similar import find_similar
-from services.database import get_users, get_categories, get_results, create_knowledge, get_login_user, get_referenced_knowledge_ids
+from services.database import get_users, get_categories, get_results, create_knowledge, get_login_user, get_referenced_knowledge_ids, get_reference_statistics
 from services.check import find_other_categories
 #===== 【さやねー】追加ここまで =====
 
 st.set_page_config(
-    page_title="テクゼロン電気　お客さまナレッジデータベース",
+    page_title="SAI-Hakken",
     page_icon="📝",
     layout="wide",
 )
@@ -38,7 +38,31 @@ if st.session_state.get("reference_actor_id") != login_user_id:
         del st.session_state[state_key]
     st.session_state["reference_actor_id"] = login_user_id
 st.sidebar.caption(f"ログイン：{login_user['name']}")
-st.sidebar.caption(f"参考にした事例数：{login_user['reference_count']}件")
+# 【UI追加】本人の活動を全ユーザー内の順位とともに表示する
+with st.sidebar:
+    st.subheader("あなたの活動")
+    st.text(f"登録担当者：{login_user['name']}")
+    try:
+        my_statistics = get_reference_statistics().get(login_user_id)
+        if my_statistics is None:
+            raise RuntimeError("担当者の集計情報を取得できませんでした。")
+    except RuntimeError as error:
+        st.warning(str(error))
+    else:
+        for label, count_key, rank_key, unit in [
+            ("参考にした事例数", "reference_count", "reference_rank", "件"),
+            ("参考にされた回数", "referenced_count", "referenced_rank", "回"),
+        ]:
+            with st.container(border=True):
+                st.metric(label, f"{my_statistics[count_key]:,}{unit}")
+                rank = my_statistics[rank_key]
+                if rank is not None and rank <= 3:
+                    medal = ["🥇", "🥈", "🥉"][rank - 1]
+                    st.markdown(f"### {medal} {rank}位")
+                elif rank is not None and rank <= 10:
+                    st.markdown(f":violet-background[🏅 TOP10・{rank}位]")
+        st.caption("全登録ユーザー・累計。参考にされた回数は担当投稿の合計。同数は同順位。")
+
 try:
     referenced_ids = get_referenced_knowledge_ids(login_user_id)
     reference_history_error = None
@@ -279,7 +303,7 @@ with tab_register:
                     if st.button("選択を解除", key=f"unselect_reference_{case_id}"):
                         del st.session_state.pending_references[case_id]
                         st.rerun()
-                elif st.button("参考にする", key=f"select_reference_{case_id}"):
+                elif st.button("💡 参考にする", key=f"select_reference_{case_id}"):
                     st.session_state.pending_references[case_id] = case["title"]
                     st.rerun()
 
@@ -296,7 +320,8 @@ with tab_register:
     if reference_history_error:
         st.warning(reference_history_error)
     if st.session_state.pending_references:
-        st.caption("今回参考にする事例（類似事例を再検索しても選択は保持します）")
+        st.markdown("### 💡 今回参考にする事例")
+        st.caption("類似事例を再検索しても選択は保持します。登録時に確定します。")
         for reference_id, reference_title in list(st.session_state.pending_references.items()):
             st.text(f"✅ {reference_title}")
             if st.session_state.registration_snapshot is None:
@@ -351,7 +376,7 @@ with tab_register:
     else:
         st.subheader("登録内容の確認")
         st.caption("保存するのは以下の内容です。入力を変更するときは「戻って修正」を押してください。")
-        st.text(f"投稿者：{snapshot['user_name']} ／ 参考にした人：{login_user['name']}")
+        st.text(f"登録担当者：{snapshot['user_name']}")
         st.text(f"商品カテゴリ：{snapshot['category_name']} ／ 結果：{snapshot['result_name']}")
         # 【いっさん】参考事例追加と合わせてさやねーの登録内容表示をfor文で取り込み
         for label, field in [
@@ -361,7 +386,11 @@ with tab_register:
             ("提案内容", "proposal"),
             ("振り返り", "reflection"),
         ]:
-            st.text(f"**{label}**：{snapshot['data'][field]}")
+            st.markdown(f"**{label}**")
+            st.text(snapshot["data"][field] or "未入力")
+        # 【UI追加】実際に保存するキーワードを確認できるようにする
+        st.markdown("**キーワード**")
+        st.text("、".join(snapshot["keywords"]) if snapshot["keywords"] else "未設定")
         st.text(f"今回参考にする事例：{len(snapshot['references'])}件")
         for title in snapshot["references"].values():
             st.text(f"✅ {title}")
@@ -396,6 +425,8 @@ with tab_register:
                     snapshot["error"] = str(error)
                     st.rerun()
                 else:
+                    # 【UI追加】登録で変わった参考数・順位を次の描画で再集計する。
+                    get_reference_statistics.clear()
                     # 次の再実行でDBの最新履歴・回数を表示する
                     st.session_state.pending_references = {}
                     st.session_state.registration_snapshot = None
@@ -450,7 +481,10 @@ def render_consult():
     for number, record in enumerate(results[:5], 1):
         with st.expander(f"事例{number}：【{record['result_name']}】{record['category_name']}｜{record['customer_needs'][:40]}"):
             # 【いっさん】参考にした事例追加
-            st.caption(f"💡 {record.get('referenced_count')}")
+            st.markdown(
+                f"**💡 参考にされた回数：{record.get('referenced_count') or 0}回**"
+            )
+            st.text(f"登録担当者：{record.get('user_name') or '未設定'}")
             if str(record["id"]) in referenced_ids:
                 st.caption("✅ 参考にした事例")
             st.markdown(f"**お客さまの状況・家族構成：** {record.get('customer_attribute') or '未入力'}")
@@ -474,7 +508,7 @@ from services.search import search_knowledge
 SEARCH_OUTPUT_KEY = "knowledge_search_output"
 
 with tab_search:
-    tab_keyword, tab_consult = st.tabs(["🔍 キーワードで探す", "🤖 フリーワードで相談する"])
+    tab_keyword, tab_consult = st.tabs(["🔍 キーワードで探す", "💬 フリーワードで相談する"])
 with tab_consult:
     render_consult()
 with tab_keyword:
@@ -606,25 +640,37 @@ with tab_keyword:
             if search_results:
                 for i, page in enumerate(search_results, 1):
                     with st.container(border=True):
-                        st.text(f"{i}. 報告日：{page.get('report_date') or '未設定'}")
-                        st.caption(f"💡 {page.get('referenced_count', 0)}")
-                        if str(page["id"]) in referenced_ids:
-                            st.caption("✅ 参考にした事例")
+                        # 順位・商品カテゴリを見出しにし、回数とスコアを横に表示する。
+                        medal = ["🥇", "🥈", "🥉"][i - 1] if i <= 3 else ""
+                        category_name = page.get("category_name") or "カテゴリ未設定"
 
-                        # 商品カテゴリはラベル、接客結果は色付きの丸印と太字で表示する。
-                        col_category, col_result = st.columns(2)
-                        with col_category:
-                            st.caption(f"📦 商品カテゴリ：{page.get('category_name') or '未設定'}")
-                        with col_result:
-                            result_name = page.get("result_name") or "未設定"
-                            if result_name == "成約":
-                                st.markdown("接客結果：**🟢 成約**")
-                            elif result_name == "検討":
-                                st.markdown("接客結果：**🟡 検討**")
-                            elif result_name == "失注":
-                                st.markdown("接客結果：**🔴 失注**")
-                            else:
-                                st.text(f"接客結果：{result_name}")
+                        col_heading, col_count, col_score = st.columns([3, 1.4, 1.4])
+
+                        with col_heading:
+                            st.subheader(f"{medal} {i}位｜{category_name}")
+                            st.text(f"登録担当者：{page.get('user_name') or '未設定'}")
+                            st.text(f"報告日：{page.get('report_date') or '未設定'}")
+
+                        with col_count:
+                            st.metric(
+                                "💡 参考にされた回数",
+                                f"{page.get('referenced_count') or 0}回",
+                            )
+
+                        with col_score:
+                            st.metric("検索スコア", f"{page.get('relevance_score', 0):.1f}")
+
+                        if str(page["id"]) in referenced_ids:
+                            st.markdown("**✅ 参考にした事例**")
+
+                        result_name = page.get("result_name") or "未設定"
+                        result_icon = {
+                            "成約": "🟢",
+                            "検討": "🟡",
+                            "失注": "🔴",
+                        }.get(result_name, "⚪")
+
+                        st.markdown(f"**接客結果：{result_icon} {result_name}**")
 
                         # キーワードだけをタグ風に表示する。
                         # 全件を表示し、未設定の場合はその旨を表示する。
@@ -642,7 +688,7 @@ with tab_keyword:
                         # 概要と、クリックして開ける全文を表示する。
                         st.text(page["preview"] or "本文なし")
                         with st.expander("詳細を見る"):
-                            st.text(f"投稿者：{page.get('user_name') or '未設定'}")
+                            st.text(f"登録担当者：{page.get('user_name') or '未設定'}")
                             for label, field in [
                                 ("お客さまの状況・家族構成", "customer_attribute"),
                                 ("お客さまのご希望・お困りごと", "customer_needs"),
