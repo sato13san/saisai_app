@@ -380,3 +380,75 @@ def create_knowledge(
             "同じ確認画面の「この内容で登録する」から再試行してください。"
             "改善しない場合は登録IDを管理者に伝えてください。"
             ) from error
+
+# 【UI追加】参考数の集計は30秒間再利用する。DBへの書き込みは行わない。
+@st.cache_data(ttl=30, show_spinner=False)
+def get_reference_statistics() -> dict:
+    """全ユーザーの参考数と、それぞれの指標の順位を集計する。
+
+    Args:
+        なし。
+    Returns:
+        ユーザーIDをキーとし、reference_count・referenced_count・
+        reference_rank・referenced_rankを持つ辞書。
+        同数は同順位（1位、1位、3位）。0件の順位はNone。
+    Raises:
+        RuntimeError: 集計用データを取得できない場合。
+    """
+    supabase = get_client()
+    statistics = {}
+    try:
+        # 本人が参考にした数はusersの既存カウンターから取得する。
+        start = 0
+        while True:
+            response = (
+                supabase.table("users").select("id, reference_count")
+                .order("id").range(start, start + 499).execute()
+            )
+            rows = response.data or []
+            if not rows:
+                break
+            for row in rows:
+                statistics[str(row["id"])] = {
+                    "reference_count": int(row.get("reference_count") or 0),
+                    "referenced_count": 0,
+                }
+            start += len(rows)
+
+        # 参考にされた回数は、その担当者の全投稿の回数を足す。
+        # 同じ人が別々の投稿を参考にした場合は、それぞれ1回と数える。
+        start = 0
+        while True:
+            response = (
+                supabase.table("knowledge").select("id, user_id, referenced_count")
+                .order("id").range(start, start + 499).execute()
+            )
+            rows = response.data or []
+            if not rows:
+                break
+            for row in rows:
+                user_id = str(row["user_id"])
+                if user_id in statistics:
+                    statistics[user_id]["referenced_count"] += int(
+                        row.get("referenced_count") or 0
+                    )
+            start += len(rows)
+
+        # 回数の大きい順に並べ、同数には同じ順位を付ける。
+        for count_key, rank_key in [
+            ("reference_count", "reference_rank"),
+            ("referenced_count", "referenced_rank"),
+        ]:
+            ranked = sorted(statistics.values(), key=lambda row: row[count_key], reverse=True)
+            previous_count = None
+            rank = None
+            for position, row in enumerate(ranked, 1):
+                count = row[count_key]
+                if count != previous_count:
+                    rank = position
+                row[rank_key] = rank if count > 0 else None
+                previous_count = count
+        return statistics
+    except Exception as error:
+        logger.exception("参考数の集計に失敗しました")
+        raise RuntimeError("参考数・順位を取得できませんでした。") from error
