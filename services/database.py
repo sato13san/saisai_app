@@ -138,7 +138,7 @@ def list_knowledge(
                 .select(
                     "id, user_id, product_category_id, result_id, report_date,"
                     "customer_attribute, customer_needs, proposal, reflection, created_at, referenced_count,"
-                    "users(name), product_category(name), result(name),"
+                    "users!fk_knowledge_user(name), product_category(name), result(name),"
                     "knowledge_keyword(keyword(name))"
                 )
             )
