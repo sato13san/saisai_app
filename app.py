@@ -185,10 +185,6 @@ with tab_register:
         }
 
         st.success("入力内容を一時保存しました。")
-#　いささんデータつなぎ後に稼働するところ
-        # 保存した事例データを確認
-        st.write("保存した事例データ")
-        st.write(st.session_state.case_data)
 # 今回の事例
         st.subheader("今回の事例")
 
@@ -324,7 +320,7 @@ with tab_register:
     # 【今回の見直し】保存はPythonで順に行う。部分保存でも同じ内容・IDで再試行する。
     snapshot = st.session_state.registration_snapshot
     if snapshot is None:
-        if st.button("事例を登録する", type="primary"):
+        if st.button("事例を登録する", type="primary", width="stretch"):
             if selected_category == "選択してください":
                 st.warning("商品カテゴリを選択してください。")
             elif selected_result == "選択してください":
@@ -385,24 +381,7 @@ with tab_register:
         with col_register:
             if st.button("この内容で登録する", type="primary", width="stretch"):
                 snapshot["attempted"] = True
-                # todo 最後まで書き終わったら削除ここから
-                """
-                # DBに保存するデータを作成
-                data = {
-                    "user_id": user_ids[selected_user],
-                    "product_category_id": category_ids[selected_category],
-                    "result_id": result_ids[selected_result],
-                    "customer_attribute": customer_attribute,
-                    "customer_needs": customer_needs,
-                    "proposal": proposal,
-                    "reflection": reflection,
-                    "report_date": report_date.isoformat(),
-                }
 
-                # 「類似事例を見る」で生成したキーワードを取得
-                keywords = st.session_state.case_data.get("keywords", [])
-                """
-                # todo 最後まで書き終わったら削除ここまで
                 try:
                     with st.spinner("登録しています..."):
                         knowledge_id = create_knowledge(
@@ -430,31 +409,6 @@ with tab_register:
                     st.session_state["reset_form_pending"] = True
                     st.session_state["register_success"] = "事例と参考履歴を登録しました！"
                     st.rerun()
-
-    """【いっさん】さやねーと修正が被ったのでさやねーの修正箇所を保持
-    # 登録確認画面を表示するための状態
-    if "show_register_confirmation" not in st.session_state:
-        st.session_state.show_register_confirmation = False
-    #===== 【さやねー】事例登録時に誤りがないかのアラート表示追加 =====
-
-    # 確認画面を表示していないときだけ「事例を登録する」を表示
-    if not st.session_state.show_register_confirmation:
-        if st.button("事例を登録する", type="primary", width="stretch"):
-
-            # 必須項目の入力チェック
-            if selected_user == "選択してください":
-                st.warning("ユーザーを選択してください。")
-
-            elif selected_category == "選択してください":
-                st.warning("商品カテゴリを選択してください。")
-
-            elif selected_result == "選択してください":
-                st.warning("結果を選択してください。")
-
-            else:
-                st.session_state.show_register_confirmation = True
-                st.rerun()
-    """
     #===== 【さやねー】入力フォーム ここまで =====
 
 # ===== 【飯酒盃】文章で相談する（案B） ここから =====
