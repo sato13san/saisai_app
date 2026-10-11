@@ -15,6 +15,19 @@ st.set_page_config(
     layout="wide",
 )
 
+# ===== さやねー　SAI-HAKKEN デザインCSSの読み込み =====
+from pathlib import Path
+
+css_path = Path(__file__).parent / "style.css"
+
+with open(css_path, "r", encoding="utf-8") as css_file:
+    st.markdown(
+        f"<style>{css_file.read()}</style>",
+        unsafe_allow_html=True
+    )
+# ===== さやねー　デザインCSSの読み込み ここまで =====
+
+
 # =====【飯酒盃】ログインタブ ここから ====
 
 if not st.user.is_logged_in:
@@ -23,12 +36,38 @@ if not st.user.is_logged_in:
     st.stop()
 
 st.sidebar.button("ログアウト", on_click=st.logout)
+# ===== さやねー　サイドバーメニュー 追加=====
+with st.sidebar:
+    st.markdown("## 💡 SAI-HAKKEN")
+    st.caption("テクゼロン電気")
+    st.divider()
+    st.markdown("### 📋 メニュー")
+
+    st.markdown("📝 **事例登録**")
+    st.markdown("🔍 **ナレッジ検索**")
+
+    st.divider()
+# ===== さやねー　サイドバーメニュー ここまで =====
+
 login_email = st.user.email   # この値で users テーブルから担当者を探す
 ## =====【飯酒盃】ログインタブ ここまで =====
 
-st.title("SAI-HAKKEN")
-st.write("接客事例を登録し、過去の成功事例から新たな気づきを発見しましょう。")
-st.caption("接客事例を入力してください。登録後は過去の事例を検索できます。")
+# ===== さやねー　SAI-HAKKEN ブランドヘッダー =====
+st.markdown(
+    """
+    <div class="brand-header">
+        <div class="brand-title">💡 SAI-HAKKEN</div>
+        <div class="brand-subtitle">テクゼロン電気</div>
+        <div class="brand-message">
+            接客の経験が、次の成功につながる。
+        </div>
+        <div class="brand-description">
+            事例を登録し、ナレッジを共有して、より良い提案へ。
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # タブ作成
 tab_register, tab_search = st.tabs(["事例登録", "ナレッジ検索"])
@@ -60,9 +99,14 @@ with tab_register:
         st.success("事例を登録しました！")
 
     # 入力時の注意
-    st.info(
-        "※顧客の氏名・電話番号・住所などの個人情報は入力しないでください。"
-    )
+    st.markdown(
+    """
+    <div class="privacy-notice">
+        ※顧客の氏名・電話番号・住所などの個人情報は入力しないでください。
+    </div>
+    """,
+    unsafe_allow_html=True
+)
     
 # 入力した事例を保存する入れ物
     if "case_data" not in st.session_state:
@@ -348,7 +392,11 @@ def render_consult():
     st.caption("どのようなことでお困りですか。似た社内事例を探してまとめます。")
     with st.form("consult_form"):
         consultation = st.text_area("相談内容", placeholder="例：まとめ買いで冷凍室が大きい冷蔵庫を探している、予算重視のお客様にどう提案したらいい？")
-        submitted = st.form_submit_button("相談する", type="primary")
+        submitted = st.form_submit_button(
+            "💬 相談する",
+            type="primary",
+            width="stretch"
+        )
     if not submitted:
         return
     if not consultation.strip():
@@ -461,7 +509,11 @@ with tab_keyword:
                     format_func=lambda value: "すべて" if value is None else f"{value}年",
                     key="knowledge_search_year",
                 )
-            search_submitted = st.form_submit_button("検索", type="primary")
+            search_submitted = st.form_submit_button(
+                "🔍 検索する",
+                type="primary",
+                use_container_width=True
+)
 
         # ③ 検索を実行し、検索条件と結果をまとめて保存する。
         if search_submitted:
