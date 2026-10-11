@@ -1,11 +1,12 @@
 #===== 【さやねー】登録時の自動打刻追記 =====
 from datetime import date
 #===== 【さやねー】追加ここまで =====
+from uuid import uuid4
 import streamlit as st
 from llm.tools import generate_keywords, extract_search_query, summarize_cases
 #===== 【さやねー】いささん作業：find_similar(case: dict, top_k=3)を呼び出す設計（後で↓頭の＃を外す） =====
 from services.similar import find_similar
-from services.database import get_users, get_categories, get_results, create_knowledge
+from services.database import get_users, get_categories, get_results, create_knowledge, get_login_user, get_referenced_knowledge_ids
 from services.check import find_other_categories
 #===== 【さやねー】追加ここまで =====
 
@@ -24,6 +25,33 @@ if not st.user.is_logged_in:
 
 st.sidebar.button("ログアウト", on_click=st.logout)
 login_email = st.user.email   # この値で users テーブルから担当者を探す
+# ===【いっさん】ログイン照合機能追加 ここから ===
+try:
+    login_user = get_login_user(login_email)
+except RuntimeError as error:
+    st.error(str(error))
+    st.stop()
+login_user_id = str(login_user["id"])
+# 同じブラウザでアカウントが変わった場合は、前の人の下書きを引き継がない
+if st.session_state.get("reference_actor_id") != login_user_id:
+    for state_key in list(st.session_state):
+        del st.session_state[state_key]
+    st.session_state["reference_actor_id"] = login_user_id
+st.sidebar.caption(f"ログイン：{login_user['name']}")
+st.sidebar.caption(f"参考にした事例数：{login_user['reference_count']}件")
+try:
+    referenced_ids = get_referenced_knowledge_ids(login_user_id)
+    reference_history_error = None
+except RuntimeError as error:
+    referenced_ids = set()
+    reference_history_error = str(error)
+
+# 選択は登録確定までDBに送らない。辞書なので表示を切り替えても残る。
+st.session_state.setdefault("pending_references", {})
+st.session_state.setdefault("registration_snapshot", None)
+if st.session_state.get("register_success"):
+    st.success(st.session_state.pop("register_success"))
+## ===【いっさん】ログイン照合機能追加 ここまで ===
 ## =====【飯酒盃】ログインタブ ここまで =====
 
 st.title("SAI-HAKKEN")
@@ -31,15 +59,9 @@ st.write("接客事例を登録し、過去の成功事例から新たな気づ�
 st.caption("接客事例を入力してください。登録後は過去の事例を検索できます。")
 
 # タブ作成
-tab_register, tab_search = st.tabs(["事例登録", "ナレッジ検索"])
+tab_register, tab_search = st.tabs(["事例登録", "事例検索"])
 
-# ===== 【飯酒盃】キーワード生成・類似事例 ここから =====
-#===== 【さやねー】操作のため一時的にいささん作成内容を削除 =====
-
-# ===== 【飯酒盃】キーワード生成・類似事例 ここまで =====           
-
-
-# ===== 【さやねー】入力フォームをここから作っていきます =====
+## ===== 【さやねー】入力フォームをここから作っていきます =====
 # 事例登録画面を作っていきます
 
 # 登録成功後、入力フォームを初期化する
@@ -77,30 +99,35 @@ with tab_register:
 
     # ユーザー・カテゴリ・結果の選択肢をDBから取得
     try:
-        users = get_users()
-        user_ids = {row["name"]: row["id"] for row in users}
-        # ログイン中のメールから担当者名を引く（大文字・小文字の違いは無視する）
-        email_to_name = {row["email"].lower(): row["name"] for row in users if row.get("email")}
+        # === 【いっさん】機能追加 ここから ===
+        registration_users = get_users()
+        user_names = {str(row["id"]): row["name"] for row in registration_users}
+        if not user_names:
+            raise RuntimeError("投稿者の選択肢を取得できませんでした。ユーザーの参照権限を確認してください。")
+        # === 【いっさん】機能追加 ここまで ===
         category_ids = {row["name"]: row["id"] for row in get_categories()}
         result_ids = {row["name"]: row["id"] for row in get_results()}
     except RuntimeError as error:
         st.error(str(error))
         st.stop()
 
-    # 【飯酒盃】ログイン中の担当者を最初から選んでおく
-    login_name = email_to_name.get((login_email or "").lower())
-    if login_name and "selected_user" not in st.session_state:
-        st.session_state["selected_user"] = login_name
-        
     # ユーザー・商品カテゴリ・結果を横並びに表示
     col_user, col_category, col_result = st.columns(3)
 
+    # === 【いっさん】変更ここから ===
     with col_user:
-        selected_user = st.selectbox(
+        registration_user_ids = list(user_names)
+        selected_user_id = st.selectbox(
             "登録担当者",
-            ["選択してください", *user_ids],
-        key="selected_user"
-)
+            registration_user_ids,
+            index=(
+                registration_user_ids.index(login_user_id)
+                if login_user_id in registration_user_ids else 0
+            ),
+            format_func=lambda value: user_names[value],
+            key="selected_user",
+        )
+        selected_user = user_names[selected_user_id]
 
     with col_category:
         selected_category = st.selectbox(
@@ -108,6 +135,7 @@ with tab_register:
             ["選択してください", *category_ids],
             key="selected_category"
 )
+    # === 【いっさん】変更ここまで ===
 
     with col_result:
         selected_result = st.selectbox(
@@ -240,6 +268,24 @@ with tab_register:
         for case in shown_cases:
             with st.expander(case["title"]):
                 st.write(case["detail"])
+                # === 【いっさん】参考にした事例の追加 ===
+                case_id = str(case["id"])
+                if case_id in referenced_ids:
+                    st.caption("✅ 参考にした事例")
+                elif str(case["user_id"]) == login_user_id:
+                    st.caption("自分の投稿です（参考の対象外）")
+                elif reference_history_error:
+                    st.caption("参考履歴を取得できないため、選択できません。")
+                elif st.session_state.registration_snapshot is not None:
+                    st.caption("登録内容の確認中です。選択の変更は「戻って修正」から行ってください。")
+                elif case_id in st.session_state.pending_references:
+                    st.caption("✅ 参考に選択中（登録時に確定）")
+                    if st.button("選択を解除", key=f"unselect_reference_{case_id}"):
+                        del st.session_state.pending_references[case_id]
+                        st.rerun()
+                elif st.button("参考にする", key=f"select_reference_{case_id}"):
+                    st.session_state.pending_references[case_id] = case["title"]
+                    st.rerun()
 
         # まだ表示していない事例があるときだけ、ボタンを出す
         rest = len(st.session_state.similar_cases) - len(shown_cases)
@@ -250,6 +296,19 @@ with tab_register:
         st.info("似ている過去事例は見つかりませんでした。")
     # ===== 【飯酒盃】類似事例の表示 ここまで =====
 
+    # === 【いっさん】参考事例機能の追加 ここから ===
+    if reference_history_error:
+        st.warning(reference_history_error)
+    if st.session_state.pending_references:
+        st.caption("今回参考にする事例（類似事例を再検索しても選択は保持します）")
+        for reference_id, reference_title in list(st.session_state.pending_references.items()):
+            st.text(f"✅ {reference_title}")
+            if st.session_state.registration_snapshot is None:
+                if st.button("この選択を解除", key=f"remove_pending_{reference_id}"):
+                    del st.session_state.pending_references[reference_id]
+                    st.rerun()
+    # === 【いっさん】参考事例機能の追加 ここまで ===
+
     # 振り返り入力（No.5 振り返り入力・事例登録）
     st.subheader("振り返り")
     # いっさん作業　create_knowledge(data: dict, keywords: list[str]) -> str　がつながるまでの仮入力
@@ -259,36 +318,75 @@ with tab_register:
         key="reflection"
     )
 
-    # 登録確認画面の初期状態
-    if "show_register_confirmation" not in st.session_state:
-        st.session_state.show_register_confirmation = False
-    # 確認画面のときだけボタンを表示
-    
-    # 登録内容の確認
-    if st.session_state.show_register_confirmation:
+    # === 【いっさん】参考事例機能の追加 ここから ===
+    # 確認画面には入力のコピーを保存する。以後の再実行で保存内容が変わらない。
+    # 通信エラー後の再試行でも同じ登録IDを使い、投稿の二重登録を防ぐ。
+    # 【今回の見直し】保存はPythonで順に行う。部分保存でも同じ内容・IDで再試行する。
+    snapshot = st.session_state.registration_snapshot
+    if snapshot is None:
+        if st.button("事例を登録する", type="primary"):
+            if selected_category == "選択してください":
+                st.warning("商品カテゴリを選択してください。")
+            elif selected_result == "選択してください":
+                st.warning("結果を選択してください。")
+            elif reference_history_error and st.session_state.pending_references:
+                st.warning("参考履歴の取得に失敗しています。時間をおいて再度お試しください。")
+            else:
+                st.session_state.registration_snapshot = {
+                    "submission_id": str(uuid4()),
+                    "data": {
+                        "user_id": selected_user_id,
+                        "product_category_id": category_ids[selected_category],
+                        "result_id": result_ids[selected_result],
+                        "customer_attribute": customer_attribute,
+                        "customer_needs": customer_needs,
+                        "proposal": proposal,
+                        "reflection": reflection,
+                        "report_date": report_date.isoformat(),
+                    },
+                    "keywords": list(st.session_state.case_data.get("keywords") or []),
+                    "references": dict(st.session_state.pending_references),
+                    "user_name": selected_user,
+                    "category_name": selected_category,
+                    "result_name": selected_result,
+                    "attempted": False,
+                }
+                st.rerun()
+    else:
         st.subheader("登録内容の確認")
-
-        # 登録内容の表示
-        st.write(f"**ユーザー：** {selected_user}")
-        st.write(f"**商品カテゴリ：** {selected_category}")
-        st.write(f"**結果：** {selected_result}")
-        st.write(f"**報告日：** {report_date}")
-        st.write(f"**お客さまの状況・家族構成：** {customer_attribute}")
-        st.write(f"**お客さまのご希望・お困りごと：** {customer_needs}")
-        st.write(f"**提案内容：** {proposal}")
-        st.write(f"**振り返り：** {reflection}")
+        st.caption("保存するのは以下の内容です。入力を変更するときは「戻って修正」を押してください。")
+        st.text(f"投稿者：{snapshot['user_name']} ／ 参考にした人：{login_user['name']}")
+        st.text(f"商品カテゴリ：{snapshot['category_name']} ／ 結果：{snapshot['result_name']}")
+        # 【いっさん】参考事例追加と合わせてさやねーの登録内容表示をfor文で取り込み
+        for label, field in [
+            ("報告日", "report_date"),
+            ("顧客属性", "customer_attribute"),
+            ("顧客ニーズ", "customer_needs"),
+            ("提案内容", "proposal"),
+            ("振り返り", "reflection"),
+        ]:
+            st.text(f"**{label}**：{snapshot['data'][field]}")
+        st.text(f"今回参考にする事例：{len(snapshot['references'])}件")
+        for title in snapshot["references"].values():
+            st.text(f"✅ {title}")
+        if snapshot.get("error"):
+            st.error(snapshot["error"])
+            st.caption(f"管理者への確認用登録ID：{snapshot['submission_id']}")
+    # === 【いっさん】参考事例機能の追加 ここまで ===
 
         # 確認画面のボタン
         col_back, col_register = st.columns([1, 1.5])
 
         with col_back:
-            if st.button("戻って修正", width="stretch"):
-                st.session_state.show_register_confirmation = False
+            if st.button("戻って修正", width="stretch", disabled=snapshot["attempted"]):
+                st.session_state.registration_snapshot = None
                 st.rerun()
 
         with col_register:
             if st.button("この内容で登録する", type="primary", width="stretch"):
-
+                snapshot["attempted"] = True
+                # todo 最後まで書き終わったら削除ここから
+                """
                 # DBに保存するデータを作成
                 data = {
                     "user_id": user_ids[selected_user],
@@ -303,23 +401,37 @@ with tab_register:
 
                 # 「類似事例を見る」で生成したキーワードを取得
                 keywords = st.session_state.case_data.get("keywords", [])
-
+                """
+                # todo 最後まで書き終わったら削除ここまで
                 try:
                     with st.spinner("登録しています..."):
-                        knowledge_id = create_knowledge(data, keywords)
-
-                    st.session_state["registration_success"] = True
-                    st.session_state.show_register_confirmation = False
-
-                    # 次の画面表示で入力内容を初期化する
+                        knowledge_id = create_knowledge(
+                            snapshot["data"],
+                            snapshot["keywords"],
+                            reference_ids=list(snapshot["references"]),
+                            actor_user_id=login_user_id,
+                            submission_id=snapshot["submission_id"],
+                            )
+                        
+                except RuntimeError as error:
+                    snapshot["error"] = str(error)
+                    st.rerun()
+                else:
+                    # 次の再実行でDBの最新履歴・回数を表示する
+                    st.session_state.pending_references = {}
+                    st.session_state.registration_snapshot = None
+                    st.session_state["knowledge_search_output"] = None
+                    # 前の投稿のキーワード、類似事例を次の投稿へ引き継がない
+                    st.session_state.case_data = {}
+                    st.session_state.similar_cases = []
+                    st.session_state.similar_error = None
+                    st.session_state.show_all_similar = False
+                    # 入力欄は、次回の画面再実行時に初期化する
                     st.session_state["reset_form_pending"] = True
-
+                    st.session_state["register_success"] = "事例と参考履歴を登録しました！"
                     st.rerun()
 
-                except RuntimeError as error:
-                    st.error(str(error))
-
-
+    """【いっさん】さやねーと修正が被ったのでさやねーの修正箇所を保持
     # 登録確認画面を表示するための状態
     if "show_register_confirmation" not in st.session_state:
         st.session_state.show_register_confirmation = False
@@ -342,12 +454,7 @@ with tab_register:
             else:
                 st.session_state.show_register_confirmation = True
                 st.rerun()
-
-
-      
-
-
-
+    """
     #===== 【さやねー】入力フォーム ここまで =====
 
 # ===== 【飯酒盃】文章で相談する（案B） ここから =====
@@ -388,6 +495,10 @@ def render_consult():
     st.caption(f"検索に使った語：{'、'.join(words)}")
     for number, record in enumerate(results[:5], 1):
         with st.expander(f"事例{number}：【{record['result_name']}】{record['category_name']}｜{record['customer_needs'][:40]}"):
+            # 【いっさん】参考にした事例追加
+            st.caption(f"💡 {record.get('referenced_count')}")
+            if str(record["id"]) in referenced_ids:
+                st.caption("✅ 参考にした事例")
             st.markdown(f"**お客さまの状況・家族構成：** {record.get('customer_attribute') or '未入力'}")
             st.markdown(f"**お客さまのご希望・お困りごと：** {record.get('customer_needs') or '未入力'}")
             st.markdown(f"**提案内容：** {record.get('proposal') or '未入力'}")
@@ -409,11 +520,11 @@ from services.search import search_knowledge
 SEARCH_OUTPUT_KEY = "knowledge_search_output"
 
 with tab_search:
-    tab_keyword, tab_consult = st.tabs(["🔍 キーワードで探す", "💬 フリーワードで相談する"])
+    tab_keyword, tab_consult = st.tabs(["🔍 キーワードで探す", "🤖 フリーワードで相談する"])
 with tab_consult:
     render_consult()
 with tab_keyword:
-    st.subheader("ナレッジ検索")
+    st.subheader("事例検索")
     st.caption("検索語を入力してください。複数語はスペースで区切ります（OR検索）。")  # AND検索からOR検索に変更
 
     try:
@@ -436,7 +547,7 @@ with tab_keyword:
         with st.form("knowledge_search_form"):
             search_query = st.text_input(
                 "フリーワード（必須）",
-                placeholder="例：省エネ 30代",
+                placeholder="例：省エネ エアコン",
                 key="knowledge_search_query",
             )
             # 製品カテゴリ、結果、報告年で絞れるようにする
@@ -471,8 +582,24 @@ with tab_keyword:
                 )
             search_submitted = st.form_submit_button("検索", type="primary")
 
-        # ③ 検索を実行し、検索条件と結果をまとめて保存する。
-        if search_submitted:
+        # 【いっさん】検索順変更機能追加
+        sort_labels = {"score": "関連度順", "references": "参考にされた回数順"}
+        search_sort = st.selectbox(
+            "並び順", list(sort_labels), format_func=lambda value: sort_labels[value],
+            key="knowledge_search_sort",
+        )
+        previous_output = st.session_state.get(SEARCH_OUTPUT_KEY)
+        sort_changed = previous_output is not None and previous_output.get("sort_by", "score") != search_sort
+        # 並び順だけ変えたときは、最後に検索した条件を使う
+        if search_submitted or sort_changed:
+            if sort_changed and not search_submitted:
+                search_query = previous_output["query"]
+                search_category_id = previous_output.get("category_id")
+                search_result_id = previous_output.get("result_id")
+                search_year = previous_output["year"]
+
+        # 検索ボタンを押したとき、または並び順を変更したときに検索する
+        if search_submitted or sort_changed:
             # 空入力や検索失敗のときに、以前の結果を今回の結果として残さない。
             st.session_state[SEARCH_OUTPUT_KEY] = None
             if not search_query.strip():
@@ -485,6 +612,7 @@ with tab_keyword:
                             category_id=search_category_id,
                             year=search_year,
                             result_id=search_result_id,
+                            sort_by=search_sort,  # 【いっさん】表示順追加
                         )
                 except RuntimeError as error:
                     st.error(str(error))
@@ -499,6 +627,9 @@ with tab_keyword:
                     ),
                     "year": search_year,
                     "results": search_results,
+                    "category_id": search_category_id,
+                    "result_id": search_result_id,
+                    "sort_by": search_sort,  # 追加
                 }
 
         # ④ 保存済みの結果がある場合だけ表示する。
@@ -515,13 +646,16 @@ with tab_keyword:
                 f"報告年：{search_year_label}"
             )
             search_results = search_output["results"]
-            st.caption(f"表示：{len(search_results)}件（関連度順・最大20件）")
+            st.caption(f"表示：{len(search_results)}件（{sort_labels[search_output.get('sort_by', 'score')]}・最大20件）")
 
             # 宿題と同じように、結果があれば1件ずつ表示する。
             if search_results:
                 for i, page in enumerate(search_results, 1):
                     with st.container(border=True):
                         st.text(f"{i}. 報告日：{page.get('report_date') or '未設定'}")
+                        st.caption(f"💡 {page.get('referenced_count', 0)}")
+                        if str(page["id"]) in referenced_ids:
+                            st.caption("✅ 参考にした事例")
 
                         # 商品カテゴリはラベル、接客結果は色付きの丸印と太字で表示する。
                         col_category, col_result = st.columns(2)
