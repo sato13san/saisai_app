@@ -44,7 +44,7 @@ def get_users() -> list[dict]:
         response = (
             supabase
             .table("users")
-            .select("id, name")
+            .select("id, name, email")
             .order("name")
             .execute()
         )
