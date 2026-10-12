@@ -41,12 +41,7 @@ with st.sidebar:
     st.markdown("## 💡 SAI-HAKKEN")
     st.caption("テクゼロン電気")
     st.divider()
-    st.markdown("### 📋 メニュー")
 
-    st.markdown("📝 **事例登録**")
-    st.markdown("🔍 **ナレッジ検索**")
-
-    st.divider()
 # ===== さやねー　サイドバーメニュー ここまで =====
 
 login_email = st.user.email   # この値で users テーブルから担当者を探す
@@ -512,7 +507,7 @@ with tab_keyword:
             search_submitted = st.form_submit_button(
                 "🔍 検索する",
                 type="primary",
-                use_container_width=True
+                width="stretch"
 )
 
         # ③ 検索を実行し、検索条件と結果をまとめて保存する。
